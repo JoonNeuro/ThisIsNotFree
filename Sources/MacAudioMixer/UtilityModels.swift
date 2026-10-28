@@ -5,7 +5,7 @@ import MixerCore
 import SwiftUI
 
 enum UtilityModule: String, CaseIterable, Identifiable {
-    case system, audio, awake, displays, shelf, updates
+    case system, audio, awake, displays, shelf, storage, updates
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "Keep Awake"
         case .displays: return "Display Dimming"
         case .shelf: return "Menu Bar Shelf"
+        case .storage: return "Storage Tracker"
         case .updates: return "GitHub Updates"
         }
     }
@@ -24,6 +25,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "bolt.shield.fill"
         case .displays: return "sun.max"
         case .shelf: return "archivebox"
+        case .storage: return "internaldrive"
         case .updates: return "arrow.down.circle"
         }
     }
@@ -34,6 +36,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "Keep your display awake for a set time."
         case .displays: return "Dim each screen with a click-through shade."
         case .shelf: return "Pin menu items and collapse a menu bar section."
+        case .storage: return "Disk space history and watched-folder changes."
         case .updates: return "Check this project's GitHub releases."
         }
     }

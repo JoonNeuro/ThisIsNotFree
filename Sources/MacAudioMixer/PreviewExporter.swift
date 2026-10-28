@@ -33,6 +33,8 @@ enum PreviewExporter {
         try render("onboarding")
         preferences.setupComplete = true
         try render("dashboard")
+        hub.tab = "storage"
+        try render("storage")
         hub.tab = "settings"
         try render("settings")
         hub.shutdown()

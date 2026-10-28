@@ -24,6 +24,7 @@ This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, cl
 | --- | --- |
 | System Monitor | CPU, optional GPU utilization, active/wired/compressed memory, disk usage, network rates, and battery level. CPU and GPU indicators can also appear directly in the menu bar. |
 | Audio Mixer | Per-app volume, output device volume, and routing apps to different speakers or headphones. |
+| Storage Tracker | Startup-disk free-space history, watched-folder size changes, added/removed file counts, largest changes, and optional space alerts. |
 | Keep Awake | Prevent idle display and system sleep for 15 minutes, 30 minutes, one hour, two hours, or until stopped. Uses a shield-and-bolt icon. |
 | Display Dimming | Independent, click-through software shades for connected displays, with a Restore All button. |
 | Menu Bar Shelf | Discover menu items with Accessibility, pin them, and open their original menus. A collapsible section hides icons on supported macOS versions. |
@@ -39,6 +40,18 @@ Open **Shelf → Menu Bar Groups**. Edit the default Essentials group or create 
 The shelf uses the owning app's icon as a tile; it does not capture your screen to recreate live third-party status icons. Accessibility is needed to discover and press other apps' menu items. Some apps do not expose an accessible menu item or do not support the Press action.
 
 To hide originals on macOS 14–26, enable the collapsible section, hold **Command**, and drag icons to the left of the **│** divider. **Collapse Icons** pushes that section off-screen; **Reveal Icons**, **Restore Menu Bar**, or **Option-clicking the toolbox icon** brings it back. The section starts expanded each launch. macOS controls item positions and can limit this method in some layouts. Section collapsing is disabled on macOS 27 and newer; shelf shortcuts and groups remain available. macOS's own Menu Bar settings can hide supported system originals separately. Adding an item to a group does not remove its original icon automatically.
+
+## Storage history
+
+Enable **Storage Tracker** in Settings, then open **Storage → Add** to choose folders to watch. No home-folder scan starts automatically. Useful choices include Downloads, project output folders, and specific caches. Each complete scan establishes a baseline; later scans show added, removed, and modified file counts, net allocated-size changes, the largest changed files, and folder summaries. Use the Finder button to inspect a file. The app never deletes files.
+
+While the app runs, startup-disk free space is sampled every minute and watched folders every 30 minutes, with a manual **Scan Now** and cancellation. The chart retains up to 1,440 samples (24 hours with uninterrupted sampling); folder history retains up to 120 scan summaries. Optional notifications report a drop of at least 5 GB between disk samples or less than 20 GB free, at most once an hour. A free-space alert is disk-wide and does not claim a watched folder caused it. Sleep and app downtime create gaps. Historical changes from before the baseline cannot be reconstructed.
+
+Scans read file metadata, including hidden files, and use allocated blocks rather than logical file lengths, so sparse virtual disks are not counted at their advertised maximum size. They do not follow symbolic links, cross volumes, read file contents, or intentionally download cloud-only data. Cloud-only directories are skipped and marked incomplete. Permission errors, scan limits, and incomplete scans preserve the previous baseline and do not report inaccessible files as deletions. Up to eight non-overlapping folders can be watched; each scan is limited to 25,000 entries and two minutes per folder, checked between entries. Choose smaller folders if a scan is incomplete. A blocked filesystem operation may take longer to return. Live scans are not atomic filesystem snapshots.
+
+Folder totals are estimates: APFS clones and hard links may share blocks, and snapshots, purgeable space, system files, and unmonitored folders can affect free space independently. A folder total is not a promise of reclaimable disk space. Access remains subject to macOS privacy settings; select an accessible folder, or allow the app in System Settings → Privacy & Security if macOS denies access.
+
+History, watched paths, and the latest complete per-file metadata baselines stay locally in `~/Library/Application Support/ThisIsNotFree/Storage/`, with owner-only file permissions. Baselines are rewritten only after folder scans, not on every disk sample. Removing a watch removes its local baseline and summary history. Disabling the module stops sampling and scanning but keeps history for the next time it is enabled. No paths or history are uploaded.
 
 ## Display and appearance behavior
 
@@ -71,7 +84,7 @@ zsh Scripts/test.sh
 zsh Scripts/build-app.sh
 ```
 
-Tests cover release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
+Tests cover storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
 
 For local UI layout previews, the app can render only its own views, without capturing the desktop:
 

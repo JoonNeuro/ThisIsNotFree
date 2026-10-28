@@ -10,7 +10,7 @@ struct ToolGroup: Codable, Identifiable, Equatable {
     static let builtIns: [(id: String, name: String)] = [
         ("system:wifi", "Wi-Fi"), ("system:battery", "Battery"),
         ("tool:system", "System Monitor"), ("tool:audio", "Audio Outputs"),
-        ("tool:awake", "Keep Awake"), ("tool:displays", "Display Dimming")
+        ("tool:storage", "Storage Tracker"), ("tool:awake", "Keep Awake"), ("tool:displays", "Display Dimming")
     ]
     static let symbols = ["square.grid.2x2.fill", "tray.full.fill", "bolt.fill", "star.fill", "circle.grid.2x2.fill", "laptopcomputer", "network"]
 }

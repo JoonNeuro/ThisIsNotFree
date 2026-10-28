@@ -11,6 +11,7 @@ final class UtilityHub: ObservableObject {
     let displays = DisplayController()
     let shelf = MenuShelf()
     let updates = UpdateChecker()
+    let storage: StorageTracker
     let menuBarTint = MenuBarTintController()
     let groups = ToolGroups()
     let wifi = WiFiController()
@@ -25,6 +26,7 @@ final class UtilityHub: ObservableObject {
     init(preferences: HubPreferences, preview: Bool = false) {
         self.preferences = preferences
         self.preview = preview
+        self.storage = StorageTracker(preview: preview)
         subscription = preferences.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.configure() }
         }
@@ -40,12 +42,13 @@ final class UtilityHub: ObservableObject {
         let groupedSystem = preferences.enabled(.shelf) && groups.groups.contains { $0.showInMenuBar && $0.members.contains(where: { ["system:battery", "tool:system"].contains($0) }) }
         if preferences.enabled(.system) || groupedSystem { system.start() } else { system.stop() }
         wifi.refresh()
+        if preferences.enabled(.storage) { storage.start() } else { storage.stop() }
         if !preferences.enabled(.awake) { awake.stop() }
         if !preferences.enabled(.displays) { displays.restoreAll() }
         if !preferences.enabled(.shelf) { shelf.restore() }
         if preferences.enabled(.updates) { updates.start() } else { updates.stop() }
         menuBarTint.configure(enabled: preferences.menuBarTint, color: preferences.accent.nsColor, strength: preferences.tintStrength)
-        if tab == "audio" && !preferences.enabled(.audio) || tab == "shelf" && !preferences.enabled(.shelf) { tab = "home" }
+        if tab == "storage" && !preferences.enabled(.storage) || tab == "audio" && !preferences.enabled(.audio) || tab == "shelf" && !preferences.enabled(.shelf) { tab = "home" }
     }
     func setLaunchAtLogin(_ enabled: Bool) {
         Task {
@@ -57,7 +60,7 @@ final class UtilityHub: ObservableObject {
         }
     }
     func shutdown() {
-        awake.stop(); displays.restoreAll(); shelf.shutdown(); system.stop(); updates.stop(); menuBarTint.stop(); mixer = nil
+        storage.stop(); awake.stop(); displays.restoreAll(); shelf.shutdown(); system.stop(); updates.stop(); menuBarTint.stop(); mixer = nil
     }
 }
 
@@ -86,11 +89,13 @@ struct HubView: View {
                     Text("Home").tag("home")
                     if preferences.enabled(.audio) { Text("Audio").tag("audio") }
                     if preferences.enabled(.shelf) { Text("Shelf").tag("shelf") }
+                    if preferences.enabled(.storage) { Text("Storage").tag("storage") }
                     Text("Settings").tag("settings")
                 }.pickerStyle(.segmented).labelsHidden().padding(12)
                 switch hub.tab {
                 case "audio":
                     if let mixer = hub.mixer { MixerView().environmentObject(mixer) }
+                case "storage": StorageView(storage: hub.storage)
                 case "shelf": ShelfView(shelf: hub.shelf, groups: hub.groups)
                 case "settings": HubSettingsView(updates: hub.updates)
                 default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates)
@@ -170,6 +175,10 @@ private struct DashboardView: View {
                     Button { updates.openRelease() } label: {
                         Label(updates.message, systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity, alignment: .leading)
                     }.buttonStyle(.borderedProminent)
+                }
+                if preferences.enabled(.storage) {
+                    Button { hub.tab = "storage" } label: { StorageSummaryView(storage: hub.storage) }.buttonStyle(.plain)
+                    Divider()
                 }
                 if preferences.enabled(.system) {
                     Text("System Monitor").font(.headline)
@@ -399,6 +408,11 @@ struct GroupPanelView: View {
                 MetricCard(title: "CPU", value: system.cpu.map { "\(Int(($0 * 100).rounded()))%" } ?? "—", fraction: system.cpu)
                 MetricCard(title: "Memory", value: ByteCountFormatter.string(fromByteCount: Int64(system.memoryUsed), countStyle: .memory), fraction: Double(system.memoryUsed) / Double(system.memoryTotal))
             }
+        case "tool:storage":
+            if preferences.enabled(.storage) {
+                StorageSummaryView(storage: hub.storage)
+                Text("Open the toolbox Storage tab for folder history.").font(.caption).foregroundStyle(.secondary)
+            } else { disabledTool("Storage Tracker") }
         case "tool:awake":
             if preferences.enabled(.awake) {
                 HStack { Label("Keep Awake", systemImage: "bolt.shield.fill"); Spacer(); Button(awake.active ? "Stop" : "Start 1 Hour") { awake.active ? awake.stop() : awake.start(minutes: 60) } }

@@ -147,7 +147,8 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                              withCompletionHandler completionHandler: @escaping () -> Void) {
-        Task { @MainActor [weak self] in self?.hub?.tab = "settings"; self?.showPopover() }
+        let tab = response.notification.request.identifier == "storage-space" ? "storage" : "settings"
+        Task { @MainActor [weak self] in self?.hub?.tab = tab; self?.showPopover() }
         completionHandler()
     }
 
