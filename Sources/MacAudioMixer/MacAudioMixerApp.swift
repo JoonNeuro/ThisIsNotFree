@@ -173,14 +173,16 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         if let tab { hub.tab = tab }
         popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
         if mainWindow == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "This Is Not Free"
-            window.contentMinSize = NSSize(width: 900, height: 640)
+            window.contentMinSize = NSSize(width: 980, height: 680)
             window.isReleasedWhenClosed = false
-            window.setFrameAutosaveName("ThisIsNotFree.Workspace")
+            window.setFrameAutosaveName("ThisIsNotFree.Workspace.Catalog")
             window.contentViewController = NSHostingController(rootView: WorkspaceView().environmentObject(hub).environmentObject(preferences))
-            if !window.setFrameUsingName("ThisIsNotFree.Workspace") { window.center() }
+            let visible = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 1000)
+            window.setContentSize(NSSize(width: min(1280, visible.width - 80), height: min(820, visible.height - 80)))
+            if !window.setFrameUsingName("ThisIsNotFree.Workspace.Catalog") { window.center() }
             mainWindow = window
         }
         mainWindow?.deminiaturize(nil)

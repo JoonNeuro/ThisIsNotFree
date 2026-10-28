@@ -13,7 +13,7 @@ enum PreviewExporter {
         preferences.appearance = "dark"
         let hub = UtilityHub(preferences: preferences, preview: true)
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        func render<V: View>(_ name: String, view: V, width: CGFloat = 1100, height: CGFloat = 760) throws {
+        func render<V: View>(_ name: String, view: V, width: CGFloat = 1280, height: CGFloat = 820) throws {
             let controller = NSHostingController(rootView: view.environmentObject(hub).environmentObject(preferences))
             let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
@@ -31,9 +31,12 @@ enum PreviewExporter {
             window.close()
         }
         try render("onboarding", view: WorkspaceView())
+        preferences.modules = ["system", "audio", "storage"]
         preferences.setupComplete = true
         preferences.workspaceConfigured = true
         try render("dashboard", view: WorkspaceView())
+        hub.tab = "awake"
+        try render("tool-preview", view: WorkspaceView())
         hub.tab = "layout"
         try render("layout", view: WorkspaceView())
         hub.tab = "storage"

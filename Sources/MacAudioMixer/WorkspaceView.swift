@@ -5,46 +5,35 @@ struct WorkspaceView: View {
     @EnvironmentObject var hub: UtilityHub
     @EnvironmentObject var preferences: HubPreferences
     var body: some View {
-        Group {
-            if !preferences.setupComplete || !preferences.workspaceConfigured {
-                SetupFlowView(shelf: hub.shelf)
-            } else {
-                HSplitView {
-                    WorkspaceSidebarView()
-                        .frame(minWidth: 210, idealWidth: 230, maxWidth: 280)
+        HSplitView {
+            WorkspaceSidebarView().frame(minWidth: 220, idealWidth: 240, maxWidth: 280)
+            Group {
+                if let module = UtilityModule(rawValue: hub.tab) {
+                    ModuleWorkspaceView(module: module).id(module)
+                } else {
                     VStack(spacing: 0) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(title).font(.title2.bold())
-                                Text(hub.tab == "layout" ? "Choose what you use, then decide where it belongs." : "Your tools work here and in the menu bar.")
-                                    .font(.subheadline).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            if hub.tab != "layout" { Button("Customize") { hub.tab = "layout" } }
-                        }.padding(24)
-                        Divider()
-                        if hub.tab == "layout" {
-                            LayoutEditorView(shelf: hub.shelf)
-                        } else if hub.tab == "settings" {
-                            HubSettingsView(updates: hub.updates)
-                        } else if let module = UtilityModule(rawValue: hub.tab) {
-                            ToolContentView(module: module)
+                        if hub.tab == "home" || hub.tab == "mine" {
+                            ToolCatalogView(onlyAdded: hub.tab == "mine")
                         } else {
-                            DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates)
+                            HStack {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(hub.tab == "layout" ? "Tools & Layout" : "Settings").font(.title.bold())
+                                    Text(hub.tab == "layout" ? "A place for everything you choose." : "Make this toolbox feel like yours.").foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                            }.padding(28)
+                            Divider()
+                            if hub.tab == "layout" { LayoutEditorView(shelf: hub.shelf) }
+                            else { HubSettingsView(updates: hub.updates) }
                         }
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 }
-            }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 900, minHeight: 640)
+        .frame(minWidth: 980, minHeight: 680)
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(preferences.accent.color)
         .preferredColorScheme(preferences.appearance == "dark" ? .dark : preferences.appearance == "light" ? .light : nil)
-    }
-    private var title: String {
-        if hub.tab == "layout" { return "Tools & Layout" }
-        if hub.tab == "settings" { return "Settings" }
-        return UtilityModule(rawValue: hub.tab)?.title ?? "Overview"
     }
 }
 
@@ -52,35 +41,46 @@ private struct WorkspaceSidebarView: View {
     @EnvironmentObject var hub: UtilityHub
     @EnvironmentObject var preferences: HubPreferences
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("YOUR TOOLBOX").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).padding(.vertical, 8)
-                    row("Overview", "square.grid.2x2", "home")
-                    row("Tools & Layout", "slider.horizontal.3", "layout")
-                    Text("ENABLED TOOLS").font(.caption2.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 20).padding(.bottom, 8)
-                    ForEach(UtilityModule.allCases.filter { preferences.enabled($0) }) { module in row(module.title, module.symbol, module.rawValue) }
-                    Divider().padding(.vertical, 12)
-                    row("Settings", "gearshape", "settings")
-                }
-            }
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
                 AppIdentityMark(icons: hub.icons, size: 40)
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("This Is Not Free").font(.headline)
-                    Text("Your Mac. Your toolbox.").font(.caption).foregroundStyle(.secondary)
+                    Text("THE COLLECTION").font(.system(size: 9, weight: .semibold)).tracking(1.8).foregroundStyle(.secondary)
                 }
-            }.padding(.vertical, 8)
+            }.padding(.vertical, 12)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    row("All Tools", "square.grid.2x2", "home", count: UtilityModule.allCases.count)
+                    row("My Toolbox", "tray", "mine", count: preferences.setupComplete ? preferences.modules.count : 0)
+                    ForEach(ToolCategory.allCases) { category in
+                        Text(category.title.uppercased()).font(.system(size: 9, weight: .semibold)).tracking(1.1)
+                            .foregroundStyle(.secondary).padding(.top, 18).padding(.bottom, 7).padding(.leading, 10)
+                        ForEach(category.modules) { module in
+                            row(module.title, module.symbol, module.rawValue, enabled: preferences.setupComplete && preferences.enabled(module))
+                        }
+                    }
+                }
+            }
+            Divider()
+            row("Menu Bar Layout", "menubar.rectangle", "layout")
+            row("Settings", "gearshape", "settings")
         }.padding(14).frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .controlBackgroundColor))
     }
-    private func row(_ title: String, _ symbol: String, _ tab: String) -> some View {
+    private func row(_ title: String, _ symbol: String, _ tab: String, count: Int? = nil, enabled: Bool = false) -> some View {
         Button { hub.tab = tab } label: {
-            Label(title, systemImage: symbol)
-                .font(.subheadline.weight(hub.tab == tab ? .semibold : .regular))
-                .foregroundStyle(hub.tab == tab ? preferences.accent.color : Color.primary)
-                .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading).padding(.horizontal, 10)
-                .background(hub.tab == tab ? preferences.accent.color.opacity(0.16) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
+            HStack(spacing: 10) {
+                Image(systemName: symbol).frame(width: 18)
+                Text(title).lineLimit(1)
+                Spacer(minLength: 2)
+                if let count { Text("\(count)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary) }
+                else if enabled { Circle().fill(.green).frame(width: 5, height: 5).accessibilityLabel("Added") }
+            }
+            .font(.system(size: 12, weight: hub.tab == tab ? .semibold : .regular))
+            .foregroundStyle(hub.tab == tab ? preferences.accent.color : Color.primary)
+            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading).padding(.horizontal, 10)
+            .background(hub.tab == tab ? preferences.accent.color.opacity(0.13) : Color.clear, in: RoundedRectangle(cornerRadius: 7))
         }.buttonStyle(.plain)
     }
 }
@@ -91,8 +91,8 @@ struct ToolContentView: View {
     let module: UtilityModule
     var body: some View {
         Group {
-            if !preferences.enabled(module) {
-                ContentUnavailableView("Tool disabled", systemImage: module.symbol, description: Text("Enable it in Tools & Layout."))
+            if !preferences.setupComplete || !preferences.enabled(module) {
+                ModulePreviewDetail(module: module)
             } else {
                 switch module {
                 case .audio:
@@ -100,7 +100,7 @@ struct ToolContentView: View {
                     else { ProgressView("Starting Audio Mixer…") }
                 case .storage: StorageView(storage: hub.storage)
                 case .shelf: ShelfView(shelf: hub.shelf, groups: hub.groups)
-                case .updates: HubSettingsView(updates: hub.updates)
+                case .updates: UpdateToolView(updates: hub.updates)
                 default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates, section: module)
                 }
             }
@@ -113,7 +113,7 @@ struct LayoutChoicesView: View {
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             ForEach(LayoutPreset.allCases) { preset in
-                Button { preferences.applyLayout(preset) } label: {
+                Button { preferences.applyLayout(preset); preferences.workspaceConfigured = true; preferences.setupComplete = true } label: {
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: preset.symbol).font(.title2).frame(width: 30)
                         VStack(alignment: .leading, spacing: 6) {
@@ -168,7 +168,7 @@ struct ExternalIconsEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Existing Menu Bar Icons").font(.headline)
-            Toggle("Connect other apps' menu bar items", isOn: Binding(get: { preferences.enabled(.shelf) }, set: { preferences.set(.shelf, enabled: $0) }))
+            Toggle("Connect other apps' menu bar items", isOn: Binding(get: { preferences.enabled(.shelf) }, set: { if $0 { preferences.activate(.shelf) } else { preferences.set(.shelf, enabled: false) } }))
             if preferences.enabled(.shelf) {
                 Toggle("Include existing items in the shared box", isOn: Binding(get: { preferences.externalInBox }, set: { preferences.externalInBox = $0; preferences.layout = .custom }))
                 if preferences.externalInBox {
@@ -207,41 +207,6 @@ struct ExternalIconsEditor: View {
     }
 }
 
-struct SetupFlowView: View {
-    @EnvironmentObject var hub: UtilityHub
-    @EnvironmentObject var preferences: HubPreferences
-    @ObservedObject var shelf: MenuShelf
-    @State private var step = 0
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                HStack(spacing: 12) { AppIdentityMark(icons: hub.icons, size: 48); Text("This Is Not Free").font(.title2.bold()) }
-                Spacer()
-                Text("\(step + 1) / 3").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
-            }
-            Text(step == 0 ? "How should your toolbox live?" : step == 1 ? "Pick only the tools you need" : "Bring existing icons along")
-                .font(.largeTitle.bold())
-            Text("Everything has a home in this app. Menu bar shortcuts are your choice.").foregroundStyle(.secondary)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if step == 0 { LayoutChoicesView() }
-                    else if step == 1 { ForEach(UtilityModule.allCases) { ModuleToggle(module: $0) } }
-                    else { ExternalIconsEditor(shelf: shelf) }
-                }.padding(3)
-            }
-            HStack {
-                if step > 0 { Button("Back") { step -= 1 } }
-                Spacer()
-                Button(step < 2 ? "Continue" : "Open My Toolbox") {
-                    if step < 2 { step += 1 }
-                    else { hub.tab = "home"; preferences.workspaceConfigured = true; preferences.setupComplete = true }
-                }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-            }
-        }.padding(40).frame(maxWidth: 850, maxHeight: .infinity, alignment: .topLeading)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 struct BoxPopoverView: View {
     @EnvironmentObject var hub: UtilityHub
     @EnvironmentObject var preferences: HubPreferences
@@ -261,7 +226,7 @@ struct BoxPopoverView: View {
             }.padding(16)
             Divider()
             if !preferences.setupComplete {
-                ContentUnavailableView("Build your toolbox", systemImage: "macwindow", description: Text("Open the app to choose tools and a menu bar layout."))
+                ContentUnavailableView("Build your toolbox", systemImage: "macwindow", description: Text("Open the app to browse previews and add the tools you want."))
             } else if let selected {
                 ToolContentView(module: selected)
             } else {

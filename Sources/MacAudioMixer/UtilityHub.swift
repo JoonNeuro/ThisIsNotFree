@@ -52,7 +52,6 @@ final class UtilityHub: ObservableObject {
         else if preferences.layout == .individual { shelf.setCollapsed(false) }
         if preferences.enabled(.updates) { updates.start() } else { updates.stop() }
         menuBarTint.configure(enabled: preferences.menuBarTint, color: preferences.accent.nsColor, strength: preferences.tintStrength)
-        if tab == "storage" && !preferences.enabled(.storage) || tab == "audio" && !preferences.enabled(.audio) || tab == "shelf" && !preferences.enabled(.shelf) { tab = "home" }
     }
     func setLaunchAtLogin(_ enabled: Bool) {
         Task {
@@ -72,7 +71,7 @@ struct ModuleToggle: View {
     @EnvironmentObject var preferences: HubPreferences
     let module: UtilityModule
     var body: some View {
-        Toggle(isOn: Binding(get: { preferences.enabled(module) }, set: { preferences.set(module, enabled: $0) })) {
+        Toggle(isOn: Binding(get: { preferences.enabled(module) }, set: { if $0 { preferences.activate(module) } else { preferences.set(module, enabled: false) } })) {
             HStack(spacing: 10) {
                 Image(systemName: module.symbol).frame(width: 24).foregroundStyle(preferences.accent.color)
                 VStack(alignment: .leading, spacing: 3) {
@@ -419,7 +418,7 @@ struct HubSettingsView: View {
                 }
                 Divider()
                 Link("Source · JoonNeuro/ThisIsNotFree", destination: URL(string: "https://github.com/JoonNeuro/ThisIsNotFree")!)
-                Button("Customize from the beginning") { hub.tab = "home"; preferences.setupComplete = false; hub.openWindow?(nil) }
+                Button("Browse All Tools") { hub.tab = "home"; hub.openWindow?(nil) }
             }.padding(16)
         }
     }

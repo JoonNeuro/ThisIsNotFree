@@ -1,10 +1,10 @@
 # This Is Not Free
 
-A free macOS utility app with a full toolbox window and optional menu bar shortcuts. Pick your tools, then decide whether to keep them in one box, give each its own icon, use them only in the app, or mix those layouts.
+A free macOS utility app with a full toolbox window and optional menu bar shortcuts. Browse every tool in a categorized preview catalog, pick what you need, then decide whether to keep them in one box, give each its own icon, use them only in the app, or mix those layouts.
 
 Requires **macOS 14.2 or newer**. Built with SwiftUI, AppKit, and system frameworks. No third-party package dependencies. MIT licensed.
 
-![Choose your toolbox on first launch](Docs/onboarding.png)
+![Browse the complete toolbox catalog](Docs/onboarding.png)
 
 ## Install from GitHub
 
@@ -16,7 +16,7 @@ cd ThisIsNotFree
 zsh Scripts/install.sh
 ```
 
-This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, the app window guides you through layout, tool selection, and optional existing menu bar connections. Reopen it from the Dock, **Open App** in a popup, or **⌘1**. Change selections and placement in **Tools & Layout**. Closing the window leaves enabled tools running; use **⌘Q** to quit. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
+This builds and installs `~/Applications/ThisIsNotFree.app`. The first window opens the complete tool catalog immediately. Browse previews without enabling tools; **Add Tool** turns on only the chosen tool. Reopen it from the Dock, **Open App** in a popup, or **⌘1**. Change selections and placement in **Tools & Layout**. Closing the window leaves enabled tools running; use **⌘Q** to quit. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
 
 The app icon is a fictional distinguished figure engraved on a **zero-value banknote**, drawn in forest-green intaglio hatching. The shared menu bar button uses a minimal **zero coin**. [Artwork and generation prompt](Resources/Brand/README.md).
 
@@ -30,9 +30,13 @@ Custom app images apply to the Dock and branding inside the app. The installed F
 
 ## App window and menu bar layout
 
-The main app window has a sidebar for Overview, Tools & Layout, enabled tools, and Settings. Tools work in that window regardless of their menu bar placement. The app appears in the Dock; reopening the app restores its window. Existing installations keep their enabled tools and receive the new three-step layout setup once.
+The sidebar always lists every tool under **System & Storage**, **Sound & Display**, **Focus & Power**, **Menu Bar**, and **App & Updates**, including tools you have not added. **All Tools** shows searchable preview cards with category filters; **My Toolbox** shows your selections. Clicking a tool opens a larger illustrative preview and feature overview, or its live controls when enabled. Added tools can switch between **Preview** and **Controls**, change their menu bar placement, or be removed from My Toolbox without disappearing from the catalog. Preview illustrations are labeled and contain example visuals, not live readings.
+
+A fresh installation enables no services until you add a tool. Existing installations retain their saved selections. The app appears in the Dock; closing its window leaves selected tools running. Menu Bar Layout and Settings remain available at the bottom of the sidebar. Tools work in the app window regardless of menu bar placement.
 
 ![Choose tools and where they appear](Docs/layout.png)
+
+![Preview any tool before enabling it](Docs/tool-preview.png)
 
 Choose a starting layout in **Tools & Layout**:
 
@@ -111,7 +115,7 @@ zsh Scripts/test.sh
 zsh Scripts/build-app.sh
 ```
 
-Tests cover custom icon import, bounded image decoding, persistence, independent resets and invalid-file rejection, layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
+Tests cover full catalog category coverage, explicit first-tool activation, custom icon import, bounded image decoding, persistence, independent resets and invalid-file rejection, layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
 
 For local UI layout previews, the app can render only its own views, without capturing the desktop:
 

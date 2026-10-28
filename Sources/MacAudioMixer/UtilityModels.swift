@@ -42,6 +42,35 @@ enum UtilityModule: String, CaseIterable, Identifiable {
     }
 }
 
+enum ToolCategory: String, CaseIterable, Identifiable {
+    case system, sound, focus, menuBar, app
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .system: return "System & Storage"; case .sound: return "Sound & Display"; case .focus: return "Focus & Power"; case .menuBar: return "Menu Bar"; case .app: return "App & Updates" }
+    }
+    var modules: [UtilityModule] { UtilityModule.allCases.filter { $0.category == self } }
+}
+
+extension UtilityModule {
+    var category: ToolCategory {
+        switch self { case .system, .storage: return .system; case .audio, .displays: return .sound; case .awake: return .focus; case .shelf: return .menuBar; case .updates: return .app }
+    }
+    var color: Color {
+        switch self { case .system: return .mint; case .storage: return .orange; case .audio: return .purple; case .displays: return .yellow; case .awake: return .cyan; case .shelf: return .pink; case .updates: return .green }
+    }
+    var features: [String] {
+        switch self {
+        case .system: return ["CPU, GPU, and memory at a glance", "Network transfer rates and battery status", "Optional CPU and GPU menu bar indicators"]
+        case .storage: return ["Free-space history for your startup disk", "Choose folders and compare file changes", "Alerts when free space suddenly drops"]
+        case .audio: return ["Set the volume of each active app", "Send different apps to different speakers", "Adjust hardware or supported software output volume"]
+        case .displays: return ["Independent software dimming for each display", "Quickly restore every screen", "Click-through shades removed when the app quits"]
+        case .awake: return ["Prevent idle system and display sleep", "Set a timer or keep awake until stopped", "Closing the lid and manual Sleep still work"]
+        case .shelf: return ["Collect accessible menu items in one popup", "Mix built-in controls and third-party shortcuts", "Collapse a manually arranged section on supported macOS"]
+        case .updates: return ["Check this project's published GitHub releases", "Optional update notifications", "Open verified release pages to download updates"]
+        }
+    }
+}
+
 enum HubAccent: String, CaseIterable, Identifiable {
     case blue, purple, orange, green, pink
     var id: String { rawValue }
@@ -110,7 +139,7 @@ final class HubPreferences: ObservableObject {
         placements = defaults.dictionary(forKey: "hub.placements") as? [String: String] ?? [:]
         externalInBox = defaults.object(forKey: "hub.externalInBox") as? Bool ?? true
         includeAllExternal = defaults.object(forKey: "hub.includeAllExternal") as? Bool ?? true
-        modules = Set(defaults.stringArray(forKey: "hub.modules") ?? ["system", "audio", "storage"])
+        modules = Set(defaults.stringArray(forKey: "hub.modules") ?? [])
         setupComplete = defaults.bool(forKey: "hub.setupComplete")
         accent = HubAccent(rawValue: defaults.string(forKey: "hub.accent") ?? "blue") ?? .blue
         appearance = defaults.string(forKey: "hub.appearance") ?? "system"
@@ -142,6 +171,11 @@ final class HubPreferences: ObservableObject {
             if preset == .box { includeAllExternal = true }
         }
         layout = preset
+    }
+    func activate(_ module: UtilityModule) {
+        set(module, enabled: true)
+        workspaceConfigured = true
+        setupComplete = true
     }
     func enabled(_ module: UtilityModule) -> Bool { modules.contains(module.rawValue) }
     func set(_ module: UtilityModule, enabled: Bool) {
