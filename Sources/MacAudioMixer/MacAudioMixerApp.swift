@@ -37,22 +37,21 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
             NSApplication.shared.terminate(nil)
             return
         }
+        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: iconURL) {
+            NSApp.applicationIconImage = icon
+        }
         let hub = UtilityHub(preferences: preferences)
         self.hub = hub
         hub.openWindow = { [weak self] tab in self?.showMainWindow(tab: tab) }
         configureMainMenu()
         UNUserNotificationCenter.current().delegate = self
 
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = NSStatusBar.system.statusItem(withLength: 30)
         item.autosaveName = "ThisIsNotFree.Toolbox"
         statusItem = item
         guard let button = item.button else { return }
-        if let image = NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "This Is Not Free") {
-            image.isTemplate = true
-            button.image = image
-        } else {
-            button.title = "♫"
-        }
+        button.image = BrandIcon.menuBar
+        button.imageScaling = .scaleProportionallyDown
         button.toolTip = "This Is Not Free · Option-click to reveal menu bar icons"
         button.target = self
         button.action = #selector(togglePopover)

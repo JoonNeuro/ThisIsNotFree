@@ -39,6 +39,13 @@ enum PreviewExporter {
         hub.tab = "storage"
         try render("storage", view: WorkspaceView())
         try render("box", view: BoxPopoverView(shelf: hub.shelf), width: 420, height: 580)
+        try render("menu-bar-icon", view:
+            HStack(spacing: 0) {
+                Image(nsImage: BrandIcon.menuBar).renderingMode(.template).foregroundStyle(.black)
+                    .frame(width: 210, height: 100).background(Color.white)
+                Image(nsImage: BrandIcon.menuBar).renderingMode(.template).foregroundStyle(.white)
+                    .frame(width: 210, height: 100).background(Color.black)
+            }, width: 420, height: 100)
         hub.tab = "settings"
         try render("settings", view: WorkspaceView())
         hub.shutdown()

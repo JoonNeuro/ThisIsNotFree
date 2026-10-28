@@ -1,0 +1,9 @@
+# Mouth identity
+
+`MouthArtwork-v1.png` was generated with the built-in image generation tool for this project. It is the square source artwork for the Dock/app icon. `Scripts/make-icon.swift` packages it into icon sizes and ICNS. The original box icon remains recoverable in Git history.
+
+The menu bar uses the independently drawn, transparent, monochrome 24 × 16 point mouth in `Sources/MacAudioMixer/BrandIcon.swift`. It has no ivory background, text, or miniature painting texture. macOS supplies light/dark template rendering. Layout choices can still use a box symbol to describe grouping.
+
+## Generation prompt
+
+Use case: logo-brand. Create one polished square macOS app icon concept for a utility app named This Is Not Free, inspired by the witty surreal juxtaposition of a plainly painted object and its contradictory name. Subject: a large isolated human mouth at the very beginning of saying the English word FREE: an unmistakable F articulation, upper front teeth gently touching the inner lower lip, with a small dark slit behind. Mouth only, no face, nose, chin, hands, coins or other objects. Frontal view. Matte muted vermilion red lips, simplified ivory upper teeth, deep warm charcoal mouth interior. Restrained elegant surrealist oil-paint illustration with very subtle brushwork and broad sculptural shapes, clean edges, no skin pores or hyperreal dental detail. Warm flat ivory background fills the square edge to edge. The wide mouth occupies about 78 percent of the width, centered, a little above the vertical midpoint. Sophisticated, slightly absurd, neutral expression, not smiling, not sensual, not glossy. Strong recognizable silhouette which can later be adapted into a mouth-only monochrome menu-bar mark. No writing, lettering, captions, watermark, border, drop shadow, device mockup or pre-rounded icon container. Output a single standalone square icon artwork.

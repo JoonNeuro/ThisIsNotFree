@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".build/AppIcon.iconset")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+let artworkURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst(3).first ?? "Resources/Brand/MouthArtwork-v1.png")
+guard let source = CGImageSourceCreateWithURL(artworkURL as CFURL, nil),
+      let artwork = CGImageSourceCreateImageAtIndex(source, 0, nil) else { fatalError("Could not load mouth artwork") }
 for points in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
         let size = points * scale
@@ -14,18 +17,8 @@ for points in [16, 32, 128, 256, 512] {
         context.scaleBy(x: CGFloat(size) / 1024, y: CGFloat(size) / 1024)
         context.addPath(CGPath(roundedRect: CGRect(x: 26, y: 26, width: 972, height: 972), cornerWidth: 215, cornerHeight: 215, transform: nil))
         context.clip()
-        let colors = [CGColor(red: 0.18, green: 0.39, blue: 0.98, alpha: 1), CGColor(red: 0.57, green: 0.19, blue: 0.87, alpha: 1)] as CFArray
-        let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
-        context.drawLinearGradient(gradient, start: CGPoint(x: 120, y: 930), end: CGPoint(x: 900, y: 80), options: [])
-        context.setStrokeColor(CGColor(gray: 1, alpha: 0.97))
-        context.setLineWidth(38); context.setLineJoin(.round); context.setLineCap(.round)
-        let edges: [[CGPoint]] = [
-            [.init(x: 252, y: 630), .init(x: 512, y: 770), .init(x: 772, y: 630), .init(x: 512, y: 490), .init(x: 252, y: 630)],
-            [.init(x: 252, y: 630), .init(x: 252, y: 350), .init(x: 512, y: 210), .init(x: 772, y: 350), .init(x: 772, y: 630)],
-            [.init(x: 512, y: 490), .init(x: 512, y: 210)],
-            [.init(x: 382, y: 700), .init(x: 642, y: 560), .init(x: 642, y: 455)]
-        ]
-        for edge in edges { context.addLines(between: edge); context.strokePath() }
+        context.interpolationQuality = .high
+        context.draw(artwork, in: CGRect(x: 26, y: 26, width: 972, height: 972))
         let filename = "icon_\(points)x\(points)\(scale == 2 ? "@2x" : "").png"
         let destination = CGImageDestinationCreateWithURL(output.appendingPathComponent(filename) as CFURL, UTType.png.identifier as CFString, 1, nil)!
         CGImageDestinationAddImage(destination, context.makeImage()!, nil)

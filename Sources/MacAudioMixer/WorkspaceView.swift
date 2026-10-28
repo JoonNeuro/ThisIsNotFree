@@ -212,7 +212,7 @@ struct SetupFlowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Label("This Is Not Free", systemImage: "shippingbox.fill").font(.title2.bold())
+                Label { Text("This Is Not Free") } icon: { Image(nsImage: BrandIcon.menuBar).renderingMode(.template) }.font(.title2.bold())
                 Spacer()
                 Text("\(step + 1) / 3").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
@@ -248,7 +248,11 @@ struct BoxPopoverView: View {
         VStack(spacing: 0) {
             HStack {
                 if selected != nil { Button { selected = nil } label: { Image(systemName: "chevron.left") }.buttonStyle(.borderless) }
-                Label(selected?.title ?? "My Toolbox", systemImage: selected?.symbol ?? "shippingbox.fill").font(.headline)
+                HStack(spacing: 8) {
+                    if let selected { Image(systemName: selected.symbol) }
+                    else { Image(nsImage: BrandIcon.menuBar).renderingMode(.template) }
+                    Text(selected?.title ?? "My Toolbox")
+                }.font(.headline)
                 Spacer()
                 Button("Open App") { hub.openWindow?(selected?.rawValue) }.buttonStyle(.borderless)
             }.padding(16)
