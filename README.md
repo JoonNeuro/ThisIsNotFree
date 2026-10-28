@@ -1,6 +1,6 @@
 # This Is Not Free
 
-A free, customizable macOS menu bar toolbox. Pick your tools on first launch, combine them into groups, and keep the controls you use behind one icon.
+A free macOS utility app with a full toolbox window and optional menu bar shortcuts. Pick your tools, then decide whether to keep them in one box, give each its own icon, use them only in the app, or mix those layouts.
 
 Requires **macOS 14.2 or newer**. Built with SwiftUI, AppKit, and system frameworks. No third-party package dependencies. MIT licensed.
 
@@ -16,7 +16,24 @@ cd ThisIsNotFree
 zsh Scripts/install.sh
 ```
 
-This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, click the box icon and choose the modules and menu bar indicators you want. Change those choices later in **Settings**. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
+This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, the app window guides you through layout, tool selection, and optional existing menu bar connections. Reopen it from the Dock, **Open App** in a popup, or **⌘1**. Change selections and placement in **Tools & Layout**. Closing the window leaves enabled tools running; use **⌘Q** to quit. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
+
+## App window and menu bar layout
+
+The main app window has a sidebar for Overview, Tools & Layout, enabled tools, and Settings. Tools work in that window regardless of their menu bar placement. The app appears in the Dock; reopening the app restores its window. Existing installations keep their enabled tools and receive the new three-step layout setup once.
+
+![Choose tools and where they appear](Docs/layout.png)
+
+Choose a starting layout in **Tools & Layout**:
+
+- **One Box:** one toolbox icon opens a compact grid of selected tools and connected menu items. Clicking a built-in tool opens its controls inside that popup.
+- **Individual Icons:** every selected built-in tool gets a separate menu bar icon and its own control popup. Existing third-party originals stay in place.
+- **App Only:** tools remain available in the main window with no toolbox status icons. The collapsible section is restored and disabled.
+- **Custom Mix:** set each enabled tool to **In the Box**, **Own Icon**, or **App Only**. Saved custom groups can also appear in this mode.
+
+Under **Existing Menu Bar Icons**, enable the shelf connection and allow Accessibility. Include all discovered items, including newly discovered ones, or turn off that option and check individual items. Disabling a tool removes its shortcut without losing its saved settings. Layout presets change placements without disabling tools. CPU/GPU percentage indicators are optional additional icons when System Monitor uses **Own Icon**.
+
+Existing-item tiles use their owning app's icon and press the original accessible menu item. They do not reparent third-party status items or recreate their live graphics. Not every system or third-party item is exposed through Accessibility. To conceal originals on supported macOS versions, enable the collapsible section, Command-drag originals to its left, keep the box to its right, and collapse it. Adding a tile alone does not hide the original. See the shelf details below.
 
 ## Tools
 
@@ -29,13 +46,13 @@ This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, cl
 | Display Dimming | Independent, click-through software shades for connected displays, with a Restore All button. |
 | Menu Bar Shelf | Discover menu items with Accessibility, pin them, and open their original menus. A collapsible section hides icons on supported macOS versions. |
 | Groups | Combine Wi-Fi, battery, built-in controls, and other apps' menu items under custom menu bar icons. Choose each group's name, icon, visibility, and item order. |
-| Appearance | System/light/dark popup style, accent colors, optional colored toolbox icons, and a click-through menu bar tint. |
+| Appearance | System/light/dark window and popup style, accent colors, optional colored toolbox icons, and a click-through menu bar tint. |
 | GitHub Updates | Check published stable GitHub releases every six hours, show an in-app update message, and optionally send a notification. |
 | Launch at Login | Register or remove the app as a macOS login item. |
 
 ## Groups and original menu bar icons
 
-Open **Shelf → Menu Bar Groups**. Edit the default Essentials group or create a new group. Add Wi-Fi, battery, audio outputs, system metrics, Keep Awake, display dimming, and discovered third-party items. Turn on **Show** to give the group its own menu bar icon. Built-in tools are interactive in the group popup; third-party buttons reveal and press the original menu item. Built-in audio, awake, and display controls must also be enabled in Toolbox Settings.
+Open **Menu Bar Shelf → Menu Bar Groups** in the app and choose **Custom Mix** under Tools & Layout to show custom group icons. Edit the default Essentials group or create a new group. Add Wi-Fi, battery, audio outputs, system metrics, Keep Awake, display dimming, and discovered third-party items. Turn on **Show** to give the group its own menu bar icon. Built-in tools are interactive in the group popup; third-party buttons reveal and press the original menu item. Built-in audio, awake, and display controls must also be enabled in Toolbox Settings.
 
 The shelf uses the owning app's icon as a tile; it does not capture your screen to recreate live third-party status icons. Accessibility is needed to discover and press other apps' menu items. Some apps do not expose an accessible menu item or do not support the Press action.
 
@@ -84,7 +101,7 @@ zsh Scripts/test.sh
 zsh Scripts/build-app.sh
 ```
 
-Tests cover storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
+Tests cover layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
 
 For local UI layout previews, the app can render only its own views, without capturing the desktop:
 

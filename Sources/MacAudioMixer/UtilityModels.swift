@@ -53,8 +53,40 @@ enum HubAccent: String, CaseIterable, Identifiable {
     }
 }
 
+enum ToolPlacement: String, CaseIterable, Identifiable {
+    case box, individual, window
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .box: return "In the Box"; case .individual: return "Own Icon"; case .window: return "App Only" }
+    }
+}
+
+enum LayoutPreset: String, CaseIterable, Identifiable {
+    case box, individual, window, custom
+    var id: String { rawValue }
+    var title: String {
+        switch self { case .box: return "One Box"; case .individual: return "Individual Icons"; case .window: return "App Only"; case .custom: return "Custom Mix" }
+    }
+    var symbol: String {
+        switch self { case .box: return "shippingbox.fill"; case .individual: return "rectangle.split.3x1"; case .window: return "macwindow"; case .custom: return "slider.horizontal.3" }
+    }
+    var detail: String {
+        switch self {
+        case .box: return "One menu bar icon opens your selected tools and connected menu items."
+        case .individual: return "Give each selected tool its own menu bar icon. Existing icons stay in place."
+        case .window: return "Use tools in the app window, with no toolbox menu bar icons."
+        case .custom: return "Choose a separate icon, the shared box, or app-only access for each tool."
+        }
+    }
+}
+
 @MainActor
 final class HubPreferences: ObservableObject {
+    @Published var workspaceConfigured: Bool { didSet { defaults.set(workspaceConfigured, forKey: "hub.workspaceConfigured") } }
+    @Published var layout: LayoutPreset { didSet { defaults.set(layout.rawValue, forKey: "hub.layout") } }
+    @Published private(set) var placements: [String: String] { didSet { defaults.set(placements, forKey: "hub.placements") } }
+    @Published var externalInBox: Bool { didSet { defaults.set(externalInBox, forKey: "hub.externalInBox") } }
+    @Published var includeAllExternal: Bool { didSet { defaults.set(includeAllExternal, forKey: "hub.includeAllExternal") } }
     @Published var modules: Set<String> { didSet { defaults.set(Array(modules), forKey: "hub.modules") } }
     @Published var setupComplete: Bool { didSet { defaults.set(setupComplete, forKey: "hub.setupComplete") } }
     @Published var accent: HubAccent { didSet { defaults.set(accent.rawValue, forKey: "hub.accent") } }
@@ -73,7 +105,12 @@ final class HubPreferences: ObservableObject {
                 if let value = legacy[key] { defaults.set(value, forKey: key) }
             }
         }
-        modules = Set(defaults.stringArray(forKey: "hub.modules") ?? UtilityModule.allCases.map(\.rawValue))
+        workspaceConfigured = defaults.bool(forKey: "hub.workspaceConfigured")
+        layout = LayoutPreset(rawValue: defaults.string(forKey: "hub.layout") ?? "box") ?? .box
+        placements = defaults.dictionary(forKey: "hub.placements") as? [String: String] ?? [:]
+        externalInBox = defaults.object(forKey: "hub.externalInBox") as? Bool ?? true
+        includeAllExternal = defaults.object(forKey: "hub.includeAllExternal") as? Bool ?? true
+        modules = Set(defaults.stringArray(forKey: "hub.modules") ?? ["system", "audio", "storage"])
         setupComplete = defaults.bool(forKey: "hub.setupComplete")
         accent = HubAccent(rawValue: defaults.string(forKey: "hub.accent") ?? "blue") ?? .blue
         appearance = defaults.string(forKey: "hub.appearance") ?? "system"
@@ -82,6 +119,29 @@ final class HubPreferences: ObservableObject {
         coloredIcon = defaults.bool(forKey: "hub.coloredIcon")
         menuBarTint = defaults.bool(forKey: "hub.menuBarTint")
         tintStrength = defaults.object(forKey: "hub.tintStrength") as? Double ?? 0.12
+    }
+    func placement(_ module: UtilityModule) -> ToolPlacement {
+        if let raw = placements[module.rawValue], let value = ToolPlacement(rawValue: raw) { return value }
+        return layout == .individual ? .individual : layout == .window ? .window : .box
+    }
+    var menuBarReady: Bool { setupComplete && workspaceConfigured }
+    var showsBox: Bool { !menuBarReady || !boxModules.isEmpty || (enabled(.shelf) && externalInBox) }
+    var menuBarModules: [UtilityModule] { menuBarReady ? individualModules : [] }
+    var showsCustomGroups: Bool { menuBarReady && layout == .custom && enabled(.shelf) }
+    var boxModules: [UtilityModule] { UtilityModule.allCases.filter { enabled($0) && placement($0) == .box } }
+    var individualModules: [UtilityModule] { UtilityModule.allCases.filter { enabled($0) && placement($0) == .individual } }
+    func setPlacement(_ module: UtilityModule, _ placement: ToolPlacement) {
+        placements[module.rawValue] = placement.rawValue
+        layout = .custom
+    }
+    func applyLayout(_ preset: LayoutPreset) {
+        if preset != .custom {
+            let placement: ToolPlacement = preset == .box ? .box : preset == .individual ? .individual : .window
+            placements = Dictionary(uniqueKeysWithValues: UtilityModule.allCases.map { ($0.rawValue, placement.rawValue) })
+            externalInBox = preset == .box
+            if preset == .box { includeAllExternal = true }
+        }
+        layout = preset
     }
     func enabled(_ module: UtilityModule) -> Bool { modules.contains(module.rawValue) }
     func set(_ module: UtilityModule, enabled: Bool) {

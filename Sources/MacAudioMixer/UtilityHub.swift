@@ -16,6 +16,7 @@ final class UtilityHub: ObservableObject {
     let groups = ToolGroups()
     let wifi = WiFiController()
     @Published private(set) var mixer: MixerModel?
+    var openWindow: ((String?) -> Void)?
     @Published var tab = "home"
     @Published var loginError: String?
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -45,7 +46,8 @@ final class UtilityHub: ObservableObject {
         if preferences.enabled(.storage) { storage.start() } else { storage.stop() }
         if !preferences.enabled(.awake) { awake.stop() }
         if !preferences.enabled(.displays) { displays.restoreAll() }
-        if !preferences.enabled(.shelf) { shelf.restore() }
+        if !preferences.enabled(.shelf) || preferences.layout == .window { shelf.restore() }
+        else if preferences.layout == .individual { shelf.setCollapsed(false) }
         if preferences.enabled(.updates) { updates.start() } else { updates.stop() }
         menuBarTint.configure(enabled: preferences.menuBarTint, color: preferences.accent.nsColor, strength: preferences.tintStrength)
         if tab == "storage" && !preferences.enabled(.storage) || tab == "audio" && !preferences.enabled(.audio) || tab == "shelf" && !preferences.enabled(.shelf) { tab = "home" }
@@ -64,87 +66,7 @@ final class UtilityHub: ObservableObject {
     }
 }
 
-struct HubView: View {
-    @EnvironmentObject var hub: UtilityHub
-    @EnvironmentObject var preferences: HubPreferences
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Image(systemName: "shippingbox.fill").foregroundStyle(preferences.accent.color).font(.title2)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("This Is Not Free").font(.headline)
-                    Text("Your Mac, your toolbox. Actually free.").font(.caption).foregroundStyle(.secondary)
-                }
-                Spacer()
-                if preferences.setupComplete {
-                    Button { hub.tab = "settings" } label: { Image(systemName: "gearshape") }.buttonStyle(.borderless)
-                }
-            }.padding(16)
-            Divider()
-            if !preferences.setupComplete {
-                SetupView(groups: hub.groups)
-            } else {
-                Picker("Toolbox", selection: $hub.tab) {
-                    Text("Home").tag("home")
-                    if preferences.enabled(.audio) { Text("Audio").tag("audio") }
-                    if preferences.enabled(.shelf) { Text("Shelf").tag("shelf") }
-                    if preferences.enabled(.storage) { Text("Storage").tag("storage") }
-                    Text("Settings").tag("settings")
-                }.pickerStyle(.segmented).labelsHidden().padding(12)
-                switch hub.tab {
-                case "audio":
-                    if let mixer = hub.mixer { MixerView().environmentObject(mixer) }
-                case "storage": StorageView(storage: hub.storage)
-                case "shelf": ShelfView(shelf: hub.shelf, groups: hub.groups)
-                case "settings": HubSettingsView(updates: hub.updates)
-                default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates)
-                }
-                Spacer(minLength: 0)
-                Divider()
-                HStack {
-                    Text("v\(hub.updates.currentVersion)").font(.caption2).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Quit") { NSApplication.shared.terminate(nil) }.buttonStyle(.borderless)
-                }.padding(.horizontal, 16).padding(.vertical, 10)
-            }
-        }
-        .frame(width: 420, height: 640)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .tint(preferences.accent.color)
-        .preferredColorScheme(preferences.appearance == "dark" ? .dark : preferences.appearance == "light" ? .light : nil)
-    }
-}
-
-private struct SetupView: View {
-    @EnvironmentObject var hub: UtilityHub
-    @EnvironmentObject var preferences: HubPreferences
-    @ObservedObject var groups: ToolGroups
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Build your toolbox").font(.title2.bold())
-            Text("Choose what belongs in your menu bar. You can change this anytime in Settings.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(UtilityModule.allCases) { module in ModuleToggle(module: module) }
-                    Divider()
-                    Toggle("CPU percentage in the menu bar", isOn: $preferences.showCPU)
-                    Toggle("GPU percentage in the menu bar", isOn: $preferences.showGPU)
-                    if let group = groups.groups.first {
-                        Toggle("One Essentials icon for Wi-Fi, battery, audio, and awake", isOn: Binding(get: { groups.groups.first?.showInMenuBar ?? false }, set: { value in groups.update(group.id) { $0.showInMenuBar = value } }))
-                    }
-                }
-            }
-            Button("Start using This Is Not Free") { preferences.setupComplete = true }
-                .buttonStyle(.borderedProminent).frame(maxWidth: .infinity)
-            Text("Permissions are requested only for the tools you enable.")
-                .font(.caption2).foregroundStyle(.secondary)
-        }.padding(20)
-    }
-}
-
-private struct ModuleToggle: View {
+struct ModuleToggle: View {
     @EnvironmentObject var preferences: HubPreferences
     let module: UtilityModule
     var body: some View {
@@ -160,27 +82,28 @@ private struct ModuleToggle: View {
     }
 }
 
-private struct DashboardView: View {
+struct DashboardView: View {
     @EnvironmentObject var hub: UtilityHub
     @EnvironmentObject var preferences: HubPreferences
     @ObservedObject var system: SystemMonitor
     @ObservedObject var awake: AwakeController
     @ObservedObject var displays: DisplayController
     @ObservedObject var updates: UpdateChecker
+    var section: UtilityModule? = nil
     @State private var minutes = 30
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                if updates.release != nil && preferences.enabled(.updates) {
+                if updates.release != nil && visible(.updates) {
                     Button { updates.openRelease() } label: {
                         Label(updates.message, systemImage: "arrow.down.circle.fill").frame(maxWidth: .infinity, alignment: .leading)
                     }.buttonStyle(.borderedProminent)
                 }
-                if preferences.enabled(.storage) {
+                if visible(.storage) {
                     Button { hub.tab = "storage" } label: { StorageSummaryView(storage: hub.storage) }.buttonStyle(.plain)
                     Divider()
                 }
-                if preferences.enabled(.system) {
+                if visible(.system) {
                     Text("System Monitor").font(.headline)
                     LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
                         MetricCard(title: "CPU", value: percent(system.cpu), fraction: system.cpu)
@@ -199,7 +122,7 @@ private struct DashboardView: View {
                         HStack { Label("Battery", systemImage: "battery.100percent"); Spacer(); Text(percent(battery)) }.font(.caption)
                     }
                 }
-                if preferences.enabled(.awake) {
+                if visible(.awake) {
                     Divider()
                     HStack { Label("Keep Awake", systemImage: "bolt.shield.fill").font(.headline); Spacer(); Text(awake.active ? "On" : "Off").foregroundStyle(awake.active ? .green : .secondary) }
                     HStack {
@@ -212,7 +135,7 @@ private struct DashboardView: View {
                     if let error = awake.error { Text(error).font(.caption).foregroundStyle(.orange) }
                     Text("Prevents idle sleep. Closing the lid or choosing Sleep still works.").font(.caption2).foregroundStyle(.secondary)
                 }
-                if preferences.enabled(.displays) {
+                if visible(.displays) {
                     Divider()
                     HStack { Label("Display Dimming", systemImage: "sun.max.fill").font(.headline); Spacer(); Button("Restore All") { displays.restoreAll() }.buttonStyle(.borderless) }
                     ForEach(displays.displays) { display in
@@ -223,12 +146,13 @@ private struct DashboardView: View {
                     }
                     Text("Software dimming changes the image, not the monitor's hardware backlight. Reset automatically when the app quits.").font(.caption2).foregroundStyle(.secondary)
                 }
-                if !preferences.enabled(.system) && !preferences.enabled(.awake) && !preferences.enabled(.displays) {
+                if !visible(.system) && !visible(.awake) && !visible(.displays) {
                     ContentUnavailableView("Your toolbox is ready", systemImage: "shippingbox", description: Text("Open a tab or enable more tools in Settings."))
                 }
             }.padding(16)
         }
     }
+    private func visible(_ module: UtilityModule) -> Bool { preferences.enabled(module) && (section == nil || section == module) }
     private func percent(_ value: Double?) -> String { value.map { "\(Int(($0 * 100).rounded()))%" } ?? "—" }
     private func rate(_ bytes: Double) -> String { ByteCountFormatter.string(fromByteCount: Int64(max(bytes, 0)), countStyle: .decimal) + "/s" }
 }
@@ -246,7 +170,7 @@ private struct MetricCard: View {
     }
 }
 
-private struct ShelfView: View {
+struct ShelfView: View {
     @ObservedObject var shelf: MenuShelf
     @ObservedObject var groups: ToolGroups
     @State private var search = ""
@@ -452,7 +376,7 @@ private struct GroupAudioView: View {
     }
 }
 
-private struct HubSettingsView: View {
+struct HubSettingsView: View {
     @EnvironmentObject var hub: UtilityHub
     @EnvironmentObject var preferences: HubPreferences
     @ObservedObject var updates: UpdateChecker
@@ -471,9 +395,9 @@ private struct HubSettingsView: View {
                     Slider(value: $preferences.tintStrength, in: 0.03...0.22) { Text("Tint strength") }
                     Text("A click-through tint covers the bar and its icons. It follows the accent color and is removed when you quit.").font(.caption2).foregroundStyle(.secondary)
                 }
-                Toggle("Show CPU in menu bar", isOn: $preferences.showCPU).disabled(!preferences.enabled(.system))
-                Toggle("Show GPU in menu bar", isOn: $preferences.showGPU).disabled(!preferences.enabled(.system))
-                Text("Accent and style also customize this toolbox's popup.").font(.caption2).foregroundStyle(.secondary)
+                Toggle("Show CPU in menu bar", isOn: $preferences.showCPU).disabled(!preferences.enabled(.system) || preferences.placement(.system) != .individual)
+                Toggle("Show GPU in menu bar", isOn: $preferences.showGPU).disabled(!preferences.enabled(.system) || preferences.placement(.system) != .individual)
+                Text("CPU and GPU indicators are available when System Monitor uses its own menu bar icon. Accent and style apply to the app and popups.").font(.caption2).foregroundStyle(.secondary)
                 Divider()
                 Toggle("Launch at login", isOn: Binding(get: { hub.launchAtLogin }, set: { hub.setLaunchAtLogin($0) }))
                 if let error = hub.loginError { Text(error).font(.caption).foregroundStyle(.orange) }
@@ -491,7 +415,7 @@ private struct HubSettingsView: View {
                 }
                 Divider()
                 Link("Source · JoonNeuro/ThisIsNotFree", destination: URL(string: "https://github.com/JoonNeuro/ThisIsNotFree")!)
-                Button("Customize from the beginning") { hub.tab = "home"; preferences.setupComplete = false }
+                Button("Customize from the beginning") { hub.tab = "home"; preferences.setupComplete = false; hub.openWindow?(nil) }
             }.padding(16)
         }
     }

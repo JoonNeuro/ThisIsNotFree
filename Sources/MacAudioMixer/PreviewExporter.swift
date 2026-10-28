@@ -13,14 +13,14 @@ enum PreviewExporter {
         preferences.appearance = "dark"
         let hub = UtilityHub(preferences: preferences, preview: true)
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
-        func render(_ name: String) throws {
-            let controller = NSHostingController(rootView: HubView().environmentObject(hub).environmentObject(preferences))
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 640), styleMask: [.borderless], backing: .buffered, defer: false)
+        func render<V: View>(_ name: String, view: V, width: CGFloat = 1100, height: CGFloat = 760) throws {
+            let controller = NSHostingController(rootView: view.environmentObject(hub).environmentObject(preferences))
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height), styleMask: [.borderless], backing: .buffered, defer: false)
             window.isReleasedWhenClosed = false
             window.appearance = NSAppearance(named: .darkAqua)
             window.contentViewController = controller
             let view = controller.view
-            view.frame = NSRect(x: 0, y: 0, width: 420, height: 640)
+            view.frame = NSRect(x: 0, y: 0, width: width, height: height)
             view.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.1))
             view.displayIfNeeded()
@@ -30,13 +30,17 @@ enum PreviewExporter {
             try data.write(to: directory.appendingPathComponent(name + ".png"))
             window.close()
         }
-        try render("onboarding")
+        try render("onboarding", view: WorkspaceView())
         preferences.setupComplete = true
-        try render("dashboard")
+        preferences.workspaceConfigured = true
+        try render("dashboard", view: WorkspaceView())
+        hub.tab = "layout"
+        try render("layout", view: WorkspaceView())
         hub.tab = "storage"
-        try render("storage")
+        try render("storage", view: WorkspaceView())
+        try render("box", view: BoxPopoverView(shelf: hub.shelf), width: 420, height: 580)
         hub.tab = "settings"
-        try render("settings")
+        try render("settings", view: WorkspaceView())
         hub.shutdown()
     }
 }

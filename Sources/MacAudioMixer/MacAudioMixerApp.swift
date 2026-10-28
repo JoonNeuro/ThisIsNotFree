@@ -15,6 +15,10 @@ struct MacAudioMixerApp: App {
 @MainActor
 final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem?
+    private var mainWindow: NSWindow?
+    private var moduleItems: [UtilityModule: NSStatusItem] = [:]
+    private let toolPopover = NSPopover()
+    private var currentTool: UtilityModule?
     private var cpuItem: NSStatusItem?
     private var gpuItem: NSStatusItem?
     private var groupItems: [UUID: NSStatusItem] = [:]
@@ -26,7 +30,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     private var subscriptions = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.setActivationPolicy(.accessory)
+        NSApplication.shared.setActivationPolicy(.regular)
         if let index = CommandLine.arguments.firstIndex(of: "--export-previews"), CommandLine.arguments.indices.contains(index + 1) {
             do { try PreviewExporter.export(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
             catch { fputs("Preview export failed: \(error)\n", stderr) }
@@ -35,6 +39,8 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         }
         let hub = UtilityHub(preferences: preferences)
         self.hub = hub
+        hub.openWindow = { [weak self] tab in self?.showMainWindow(tab: tab) }
+        configureMainMenu()
         UNUserNotificationCenter.current().delegate = self
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -51,11 +57,13 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         button.target = self
         button.action = #selector(togglePopover)
 
+        toolPopover.behavior = .transient
+        toolPopover.contentSize = NSSize(width: 420, height: 580)
         popover.behavior = .transient
         groupPopover.behavior = .transient
-        popover.contentSize = NSSize(width: 420, height: 640)
-        popover.contentViewController = NSHostingController(rootView: HubView().environmentObject(hub).environmentObject(preferences))
-        hub.shelf.beforeActivation = { [weak self] in self?.popover.performClose(nil); self?.groupPopover.performClose(nil) }
+        popover.contentSize = NSSize(width: 420, height: 580)
+        popover.contentViewController = NSHostingController(rootView: BoxPopoverView(shelf: hub.shelf).environmentObject(hub).environmentObject(preferences))
+        hub.shelf.beforeActivation = { [weak self] in self?.popover.performClose(nil); self?.groupPopover.performClose(nil); self?.toolPopover.performClose(nil) }
         preferences.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateStatusItems() }
         }.store(in: &subscriptions)
@@ -66,18 +74,37 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
             Task { @MainActor in self?.updateStatusItems() }
         }.store(in: &subscriptions)
         updateStatusItems()
-        if !preferences.setupComplete {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.showPopover() }
-        }
+        DispatchQueue.main.async { [weak self] in self?.showMainWindow() }
     }
 
     private func updateStatusItems() {
         guard let hub else { return }
         statusItem?.button?.contentTintColor = preferences.coloredIcon ? preferences.accent.nsColor : nil
-        let enabled = preferences.setupComplete && preferences.enabled(.system)
+        let configured = preferences.menuBarReady
+        statusItem?.isVisible = preferences.showsBox
+        let desired = Set(preferences.menuBarModules)
+        for module in Set(moduleItems.keys).subtracting(desired) {
+            if let item = moduleItems.removeValue(forKey: module) { NSStatusBar.system.removeStatusItem(item) }
+        }
+        for module in desired {
+            if moduleItems[module] == nil { hub.shelf.setCollapsed(false) }
+            let item = moduleItems[module] ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            moduleItems[module] = item
+            item.autosaveName = "ThisIsNotFree.Tool.\(module.rawValue)"
+            item.button?.image = NSImage(systemSymbolName: module.symbol, accessibilityDescription: module.title)
+            item.button?.image?.isTemplate = true
+            item.button?.contentTintColor = preferences.coloredIcon ? preferences.accent.nsColor : nil
+            item.button?.toolTip = module.title
+            item.button?.identifier = NSUserInterfaceItemIdentifier(module.rawValue)
+            item.button?.target = self
+            item.button?.action = #selector(toggleTool(_:))
+        }
+        if let currentTool, !desired.contains(currentTool) { toolPopover.performClose(nil) }
+        if statusItem?.isVisible == false { popover.performClose(nil) }
+        let enabled = configured && preferences.enabled(.system) && preferences.placement(.system) == .individual
         updateMetric(&cpuItem, enabled: enabled && preferences.showCPU, name: "CPU", value: hub.system.cpu)
         updateMetric(&gpuItem, enabled: enabled && preferences.showGPU, name: "GPU", value: hub.system.gpu)
-        let groups = preferences.setupComplete && preferences.enabled(.shelf) ? hub.groups.groups.filter(\.showInMenuBar) : []
+        let groups = preferences.showsCustomGroups ? hub.groups.groups.filter(\.showInMenuBar) : []
         let active = Set(groups.map(\.id))
         for id in Set(groupItems.keys).subtracting(active) {
             if let item = groupItems.removeValue(forKey: id) { NSStatusBar.system.removeStatusItem(item) }
@@ -96,7 +123,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
             item.button?.target = self
             item.button?.action = #selector(toggleGroup(_:))
         }
-        if preferences.setupComplete && preferences.enabled(.shelf) { hub.shelf.restoreOrganizerPreference() }
+        if configured && preferences.layout != .window && preferences.enabled(.shelf) { hub.shelf.restoreOrganizerPreference() }
     }
 
     private func updateMetric(_ item: inout NSStatusItem?, enabled: Bool, name: String, value: Double?) {
@@ -113,20 +140,86 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         } else if let existing = item { NSStatusBar.system.removeStatusItem(existing); item = nil }
     }
 
-    @objc private func openDashboard() { hub?.tab = "home"; showPopover() }
+    @objc private func openDashboard() { showMainWindow(tab: "system") }
 
     @objc private func toggleGroup(_ sender: NSStatusBarButton) {
         guard let hub, let raw = sender.identifier?.rawValue, let id = UUID(uuidString: raw) else { return }
         if groupPopover.isShown && currentGroup == id { groupPopover.performClose(nil); return }
         popover.performClose(nil)
+        toolPopover.performClose(nil)
         groupPopover.performClose(nil)
         currentGroup = id
         groupPopover.contentViewController = NSHostingController(rootView:
             GroupPanelView(groups: hub.groups, system: hub.system, awake: hub.awake, displays: hub.displays,
                            wifi: hub.wifi, shelf: hub.shelf, groupID: id, edit: { [weak self] in
-                self?.groupPopover.performClose(nil); self?.hub?.tab = "shelf"; self?.showPopover()
+                self?.groupPopover.performClose(nil); self?.showMainWindow(tab: "shelf")
             }).environmentObject(hub).environmentObject(preferences))
         groupPopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+    }
+
+    private func showMainWindow(tab: String? = nil) {
+        guard let hub else { return }
+        if let tab { hub.tab = tab }
+        popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
+        if mainWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
+                                  styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            window.title = "This Is Not Free"
+            window.contentMinSize = NSSize(width: 900, height: 640)
+            window.isReleasedWhenClosed = false
+            window.setFrameAutosaveName("ThisIsNotFree.Workspace")
+            window.contentViewController = NSHostingController(rootView: WorkspaceView().environmentObject(hub).environmentObject(preferences))
+            if !window.setFrameUsingName("ThisIsNotFree.Workspace") { window.center() }
+            mainWindow = window
+        }
+        mainWindow?.deminiaturize(nil)
+        mainWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc private func openWorkspace() { showMainWindow() }
+    @objc private func openLayout() { showMainWindow(tab: "layout") }
+    @objc private func openSettings() { showMainWindow(tab: "settings") }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showMainWindow(); return true }
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let item = menu.addItem(withTitle: "Open Toolbox", action: #selector(openWorkspace), keyEquivalent: "")
+        item.target = self
+        return menu
+    }
+    private func configureMainMenu() {
+        let menu = NSMenu()
+        let appMenu = NSMenu()
+        let root = menu.addItem(withTitle: "This Is Not Free", action: nil, keyEquivalent: "")
+        root.submenu = appMenu
+        func add(_ title: String, _ action: Selector, _ key: String) {
+            let item = appMenu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
+        }
+        add("Open Toolbox", #selector(openWorkspace), "1")
+        add("Tools & Layout…", #selector(openLayout), "l")
+        add("Settings…", #selector(openSettings), ",")
+        appMenu.addItem(.separator())
+        let hide = appMenu.addItem(withTitle: "Hide This Is Not Free", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"); hide.target = NSApp
+        appMenu.addItem(.separator())
+        let quit = appMenu.addItem(withTitle: "Quit This Is Not Free", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"); quit.target = NSApp
+        let edit = NSMenu(title: "Edit")
+        for (title, selector, key) in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] {
+            edit.addItem(withTitle: title, action: NSSelectorFromString(selector), keyEquivalent: key)
+        }
+        menu.addItem(withTitle: "Edit", action: nil, keyEquivalent: "").submenu = edit
+        let windows = NSMenu(title: "Window")
+        windows.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windows.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        menu.addItem(withTitle: "Window", action: nil, keyEquivalent: "").submenu = windows
+        NSApp.mainMenu = menu; NSApp.windowsMenu = windows
+    }
+    @objc private func toggleTool(_ sender: NSStatusBarButton) {
+        guard let hub, let raw = sender.identifier?.rawValue, let module = UtilityModule(rawValue: raw) else { return }
+        if toolPopover.isShown && currentTool == module { toolPopover.performClose(nil); return }
+        popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
+        currentTool = module
+        toolPopover.contentViewController = NSHostingController(rootView: ToolPopoverView(module: module).environmentObject(hub).environmentObject(preferences))
+        toolPopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
 
     func applicationWillTerminate(_ notification: Notification) { hub?.shutdown() }
@@ -141,6 +234,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     private func showPopover() {
         guard let button = statusItem?.button else { return }
         groupPopover.performClose(nil)
+        toolPopover.performClose(nil)
         hub?.mixer?.refresh()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
     }
@@ -148,7 +242,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                              withCompletionHandler completionHandler: @escaping () -> Void) {
         let tab = response.notification.request.identifier == "storage-space" ? "storage" : "settings"
-        Task { @MainActor [weak self] in self?.hub?.tab = tab; self?.showPopover() }
+        Task { @MainActor [weak self] in self?.showMainWindow(tab: tab) }
         completionHandler()
     }
 
