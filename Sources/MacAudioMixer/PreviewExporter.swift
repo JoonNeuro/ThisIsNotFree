@@ -46,6 +46,9 @@ enum PreviewExporter {
                 Image(nsImage: BrandIcon.menuBar).renderingMode(.template).foregroundStyle(.white)
                     .frame(width: 210, height: 100).background(Color.black)
             }, width: 420, height: 100)
+        try render("icons", view: IconSettingsView(icons: hub.icons).padding(24)
+            .frame(width: 640, height: 440, alignment: .topLeading)
+            .background(Color(nsColor: .windowBackgroundColor)), width: 640, height: 440)
         hub.tab = "settings"
         try render("settings", view: WorkspaceView())
         hub.shutdown()

@@ -64,9 +64,12 @@ private struct WorkspaceSidebarView: View {
                     row("Settings", "gearshape", "settings")
                 }
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text("This Is Not Free").font(.headline)
-                Text("Your Mac. Your toolbox.").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                AppIdentityMark(icons: hub.icons, size: 40)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("This Is Not Free").font(.headline)
+                    Text("Your Mac. Your toolbox.").font(.caption).foregroundStyle(.secondary)
+                }
             }.padding(.vertical, 8)
         }.padding(14).frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -212,7 +215,7 @@ struct SetupFlowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Label { Text("This Is Not Free") } icon: { Image(nsImage: BrandIcon.menuBar).renderingMode(.template) }.font(.title2.bold())
+                HStack(spacing: 12) { AppIdentityMark(icons: hub.icons, size: 48); Text("This Is Not Free").font(.title2.bold()) }
                 Spacer()
                 Text("\(step + 1) / 3").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
@@ -250,7 +253,7 @@ struct BoxPopoverView: View {
                 if selected != nil { Button { selected = nil } label: { Image(systemName: "chevron.left") }.buttonStyle(.borderless) }
                 HStack(spacing: 8) {
                     if let selected { Image(systemName: selected.symbol) }
-                    else { Image(nsImage: BrandIcon.menuBar).renderingMode(.template) }
+                    else { MenuIdentityMark(icons: hub.icons) }
                     Text(selected?.title ?? "My Toolbox")
                 }.font(.headline)
                 Spacer()

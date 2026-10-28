@@ -15,6 +15,7 @@ struct MacAudioMixerApp: App {
 @MainActor
 final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private var statusItem: NSStatusItem?
+    private weak var appliedAppIcon: NSImage?
     private var mainWindow: NSWindow?
     private var moduleItems: [UtilityModule: NSStatusItem] = [:]
     private let toolPopover = NSPopover()
@@ -37,20 +38,17 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
             NSApplication.shared.terminate(nil)
             return
         }
-        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: iconURL) {
-            NSApp.applicationIconImage = icon
-        }
         let hub = UtilityHub(preferences: preferences)
         self.hub = hub
         hub.openWindow = { [weak self] tab in self?.showMainWindow(tab: tab) }
         configureMainMenu()
         UNUserNotificationCenter.current().delegate = self
 
-        let item = NSStatusBar.system.statusItem(withLength: 30)
+        let item = NSStatusBar.system.statusItem(withLength: 26)
         item.autosaveName = "ThisIsNotFree.Toolbox"
         statusItem = item
         guard let button = item.button else { return }
-        button.image = BrandIcon.menuBar
+        button.image = hub.icons.menuImage
         button.imageScaling = .scaleProportionallyDown
         button.toolTip = "This Is Not Free · Option-click to reveal menu bar icons"
         button.target = self
@@ -72,13 +70,27 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         hub.groups.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateStatusItems() }
         }.store(in: &subscriptions)
+        hub.icons.objectWillChange.sink { [weak self] _ in
+            Task { @MainActor in self?.updateBranding() }
+        }.store(in: &subscriptions)
+        updateBranding()
         updateStatusItems()
         DispatchQueue.main.async { [weak self] in self?.showMainWindow() }
     }
 
+    private func updateBranding() {
+        guard let hub else { return }
+        if appliedAppIcon !== hub.icons.appImage {
+            NSApp.applicationIconImage = hub.icons.appImage
+            appliedAppIcon = hub.icons.appImage
+        }
+        statusItem?.button?.image = hub.icons.menuImage
+        statusItem?.button?.contentTintColor = preferences.coloredIcon && hub.icons.menuImage.isTemplate ? preferences.accent.nsColor : nil
+    }
+
     private func updateStatusItems() {
         guard let hub else { return }
-        statusItem?.button?.contentTintColor = preferences.coloredIcon ? preferences.accent.nsColor : nil
+        statusItem?.button?.contentTintColor = preferences.coloredIcon && hub.icons.menuImage.isTemplate ? preferences.accent.nsColor : nil
         let configured = preferences.menuBarReady
         statusItem?.isVisible = preferences.showsBox
         let desired = Set(preferences.menuBarModules)

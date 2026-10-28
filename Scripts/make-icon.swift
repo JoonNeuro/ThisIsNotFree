@@ -5,9 +5,9 @@ import UniformTypeIdentifiers
 
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".build/AppIcon.iconset")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-let artworkURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst(3).first ?? "Resources/Brand/MouthArtwork-v3.png")
+let artworkURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst(3).first ?? "Resources/Brand/ZeroBanknote-v1.png")
 guard let source = CGImageSourceCreateWithURL(artworkURL as CFURL, nil),
-      let artwork = CGImageSourceCreateImageAtIndex(source, 0, nil) else { fatalError("Could not load mouth artwork") }
+      let artwork = CGImageSourceCreateImageAtIndex(source, 0, nil) else { fatalError("Could not load icon artwork") }
 for points in [16, 32, 128, 256, 512] {
     for scale in [1, 2] {
         let size = points * scale

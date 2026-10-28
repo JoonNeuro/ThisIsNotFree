@@ -11,6 +11,7 @@ final class UtilityHub: ObservableObject {
     let displays = DisplayController()
     let shelf = MenuShelf()
     let updates = UpdateChecker()
+    let icons: IconAppearance
     let storage: StorageTracker
     let menuBarTint = MenuBarTintController()
     let groups = ToolGroups()
@@ -28,6 +29,7 @@ final class UtilityHub: ObservableObject {
         self.preferences = preferences
         self.preview = preview
         self.storage = StorageTracker(preview: preview)
+        self.icons = IconAppearance(preview: preview)
         subscription = preferences.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.configure() }
         }
@@ -383,6 +385,8 @@ struct HubSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                IconSettingsView(icons: hub.icons)
+                Divider()
                 Text("Your Toolbox").font(.headline)
                 ForEach(UtilityModule.allCases) { ModuleToggle(module: $0) }
                 Divider()

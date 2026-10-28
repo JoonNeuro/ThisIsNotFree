@@ -18,7 +18,15 @@ zsh Scripts/install.sh
 
 This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, the app window guides you through layout, tool selection, and optional existing menu bar connections. Reopen it from the Dock, **Open App** in a popup, or **⌘1**. Change selections and placement in **Tools & Layout**. Closing the window leaves enabled tools running; use **⌘Q** to quit. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
 
-The app icon shows an exaggerated cartoon lower face forcefully pronouncing the “F” in “FREE,” with ballooned cheeks, a tense philtrum and chin, muted taupe lips, and prominent upper teeth. The shared menu bar icon uses a separate mouth-only template mark for light and dark bars. [Artwork source and generation prompt](Resources/Brand/README.md).
+The app icon is a fictional distinguished figure engraved on a **zero-value banknote**, drawn in forest-green intaglio hatching. The shared menu bar button uses a minimal **zero coin**. [Artwork and generation prompt](Resources/Brand/README.md).
+
+### Customize icons
+
+![Independent app and menu bar icon customization](Docs/icons.png)
+
+Open **Settings → Icons**. Choose an image separately for **App & Dock** and the **Shared Menu Bar Icon**, or select the built-in zero coin, dollar coin, toolbox, or star. Imported menu images can adapt as monochrome templates to light/dark menu bars, or retain their original colors. Transparent PNGs work best for menu silhouettes. PNG, JPEG, TIFF, HEIC, and ICNS imports up to 20 MB are normalized to a maximum of 1,024 pixels and copied to `~/Library/Application Support/ThisIsNotFree/Icons/`. The source file is no longer needed after import. Selections survive relaunch; each icon can be restored independently.
+
+Custom app images apply to the Dock and branding inside the app. The installed Finder icon remains the bundled default. Tool-specific icons and custom group symbols keep their separate controls. No icon images are uploaded.
 
 ## App window and menu bar layout
 
@@ -103,7 +111,7 @@ zsh Scripts/test.sh
 zsh Scripts/build-app.sh
 ```
 
-Tests cover layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
+Tests cover custom icon import, bounded image decoding, persistence, independent resets and invalid-file rejection, layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
 
 For local UI layout previews, the app can render only its own views, without capturing the desktop:
 
