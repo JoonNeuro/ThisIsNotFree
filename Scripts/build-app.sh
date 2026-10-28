@@ -6,7 +6,7 @@ export SWIFTPM_MODULECACHE_OVERRIDE="$PWD/.build/swift-module-cache"
 swift build -c release --scratch-path .build --cache-path .build/cache --manifest-cache local --disable-sandbox
 app="${PWD}/dist/ThisIsNotFree.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-if [[ ! -f Resources/AppIcon.icns || Scripts/make-icon.swift -nt Resources/AppIcon.icns || Resources/Brand/MouthArtwork-v1.png -nt Resources/AppIcon.icns ]]; then
+if [[ ! -f Resources/AppIcon.icns || Scripts/make-icon.swift -nt Resources/AppIcon.icns || Resources/Brand/MouthArtwork-v3.png -nt Resources/AppIcon.icns ]]; then
     swift Scripts/make-icon.swift .build/AppIcon.iconset Resources/AppIcon.icns
 fi
 cp .build/release/ThisIsNotFree "$app/Contents/MacOS/ThisIsNotFree"

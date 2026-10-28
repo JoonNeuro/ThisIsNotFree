@@ -18,7 +18,7 @@ zsh Scripts/install.sh
 
 This builds and installs `~/Applications/ThisIsNotFree.app`. On first launch, the app window guides you through layout, tool selection, and optional existing menu bar connections. Reopen it from the Dock, **Open App** in a popup, or **⌘1**. Change selections and placement in **Tools & Layout**. Closing the window leaves enabled tools running; use **⌘Q** to quit. To build without installing, run `zsh Scripts/build-app.sh`; the app is created in `dist/ThisIsNotFree.app`.
 
-The app icon shows a painted mouth beginning to say “FREE.” The shared menu bar icon uses a separate mouth-only template mark for light and dark bars. [Artwork source and generation prompt](Resources/Brand/README.md).
+The app icon shows an exaggerated cartoon lower face forcefully pronouncing the “F” in “FREE,” with ballooned cheeks, a tense philtrum and chin, muted taupe lips, and prominent upper teeth. The shared menu bar icon uses a separate mouth-only template mark for light and dark bars. [Artwork source and generation prompt](Resources/Brand/README.md).
 
 ## App window and menu bar layout
 

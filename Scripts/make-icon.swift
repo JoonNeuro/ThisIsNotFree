@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 let output = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? ".build/AppIcon.iconset")
 try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-let artworkURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst(3).first ?? "Resources/Brand/MouthArtwork-v1.png")
+let artworkURL = URL(fileURLWithPath: CommandLine.arguments.dropFirst(3).first ?? "Resources/Brand/MouthArtwork-v3.png")
 guard let source = CGImageSourceCreateWithURL(artworkURL as CFURL, nil),
       let artwork = CGImageSourceCreateImageAtIndex(source, 0, nil) else { fatalError("Could not load mouth artwork") }
 for points in [16, 32, 128, 256, 512] {
