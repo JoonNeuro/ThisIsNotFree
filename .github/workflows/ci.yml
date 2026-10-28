@@ -1,0 +1,19 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  macos:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Tests
+        run: zsh Scripts/test.sh
+      - name: Build app
+        run: zsh Scripts/build-app.sh
