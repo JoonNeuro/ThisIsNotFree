@@ -196,6 +196,8 @@ struct CPUSample {
 
 @MainActor
 final class SystemMonitor: ObservableObject {
+    @Published private(set) var hasSample = false
+    @Published private(set) var hasNetworkInterval = false
     @Published private(set) var cpu: Double?
     @Published private(set) var gpu: Double?
     @Published private(set) var memoryUsed: UInt64 = 0
@@ -218,7 +220,7 @@ final class SystemMonitor: ObservableObject {
             Task { @MainActor in self?.sample() }
         }
     }
-    func stop() { timer?.invalidate(); timer = nil; previousCPU = nil; previousNetwork = nil }
+    func stop() { timer?.invalidate(); timer = nil; previousCPU = nil; previousNetwork = nil; hasNetworkInterval = false }
     deinit { timer?.invalidate() }
 
     private func sample() {
@@ -242,11 +244,13 @@ final class SystemMonitor: ObservableObject {
                     self.cpu = self.previousCPU.flatMap { cpu.usage(since: $0) }
                     self.previousCPU = cpu
                 }
+                self.hasSample = true
                 self.memoryUsed = memory
                 self.gpu = gpu >= 0 ? gpu / 100 : nil
                 self.battery = battery >= 0 ? battery : nil
                 self.diskUsed = total > 0 ? (total - free) / total : 0
                 if let previous = self.previousNetwork {
+                    self.hasNetworkInterval = true
                     let seconds = max(date.timeIntervalSince(previous.1), 0.1)
                     self.download = network.received >= previous.0.received ? Double(network.received - previous.0.received) / seconds : 0
                     self.upload = network.sent >= previous.0.sent ? Double(network.sent - previous.0.sent) / seconds : 0

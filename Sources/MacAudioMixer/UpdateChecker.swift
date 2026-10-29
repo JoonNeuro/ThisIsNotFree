@@ -42,7 +42,7 @@ final class UpdateChecker: ObservableObject {
     private var timer: Timer?
     private var task: Task<Void, Never>?
     private var requestID: UUID?
-    private let center = UNUserNotificationCenter.current()
+    private lazy var center = UNUserNotificationCenter.current()
 
     func start() {
         guard timer == nil else { return }

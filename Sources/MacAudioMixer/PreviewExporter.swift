@@ -4,14 +4,14 @@ import SwiftUI
 // Renders only this app's own views to files. No desktop or other app is captured.
 @MainActor
 enum PreviewExporter {
-    static func export(to directory: URL) throws {
+    static func export(to directory: URL, live: Bool = false) async throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let suite = "ThisIsNotFree.Preview.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let preferences = HubPreferences(defaults: defaults)
         preferences.appearance = "dark"
-        let hub = UtilityHub(preferences: preferences, preview: true)
+        let hub = UtilityHub(preferences: preferences, preview: !live)
         NSApplication.shared.appearance = NSAppearance(named: .darkAqua)
         func render<V: View>(_ name: String, view: V, width: CGFloat = 1280, height: CGFloat = 820) throws {
             let controller = NSHostingController(rootView: view.environmentObject(hub).environmentObject(preferences))
@@ -29,6 +29,16 @@ enum PreviewExporter {
             guard let data = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
             try data.write(to: directory.appendingPathComponent(name + ".png"))
             window.close()
+        }
+        if live {
+            let reader = UUID()
+            for module in [UtilityModule.system, .audio, .storage] { hub.acquirePreview(module, reader: reader) }
+            try await Task.sleep(for: .milliseconds(2300))
+            try render("live-catalog", view: WorkspaceView())
+            hub.tab = "storage"
+            try render("live-storage", view: WorkspaceView())
+            hub.shutdown()
+            return
         }
         try render("onboarding", view: WorkspaceView())
         preferences.modules = ["system", "audio", "storage"]

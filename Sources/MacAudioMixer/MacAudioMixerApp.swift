@@ -32,10 +32,14 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.setActivationPolicy(.regular)
-        if let index = CommandLine.arguments.firstIndex(of: "--export-previews"), CommandLine.arguments.indices.contains(index + 1) {
-            do { try PreviewExporter.export(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
-            catch { fputs("Preview export failed: \(error)\n", stderr) }
-            NSApplication.shared.terminate(nil)
+        let exportFlag = CommandLine.arguments.contains("--export-live-previews") ? "--export-live-previews" : "--export-previews"
+        if let index = CommandLine.arguments.firstIndex(of: exportFlag), CommandLine.arguments.indices.contains(index + 1) {
+            let directory = URL(fileURLWithPath: CommandLine.arguments[index + 1])
+            Task { @MainActor in
+                do { try await PreviewExporter.export(to: directory, live: exportFlag == "--export-live-previews") }
+                catch { fputs("Preview export failed: \(error)\n", stderr) }
+                NSApplication.shared.terminate(nil)
+            }
             return
         }
         let hub = UtilityHub(preferences: preferences)

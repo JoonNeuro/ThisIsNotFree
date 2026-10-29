@@ -134,6 +134,8 @@ private struct StorageArchive: Codable {
 final class StorageTracker: ObservableObject {
     @Published private(set) var roots: [String] = []
     @Published private(set) var events: [StorageEvent] = []
+    @Published private(set) var previewCapacity: StorageCapacity?
+    var latestCapacity: StorageCapacity? { previewCapacity ?? capacity.last }
     @Published private(set) var capacity: [StorageCapacity] = []
     @Published private(set) var loading = false
     @Published private(set) var scanning = false
@@ -147,30 +149,46 @@ final class StorageTracker: ObservableObject {
     private var generation = UUID()
     private var lastScan: Date?
     private var lastNotification: Date?
+    private var previewHistoryLoaded = false
     private var loaded = false
     private var sampling = false
     private let persistence = DispatchQueue(label: "ThisIsNotFree.storage.persistence", qos: .utility)
     private let archiveURL: URL
 
-    init(preview: Bool = false, archiveURL: URL? = nil) {
+    init(archiveURL: URL? = nil) {
         self.archiveURL = archiveURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("ThisIsNotFree/Storage/history.json")
         if archiveURL != nil { notificationsEnabled = false }
-        guard preview else { return }
-        let root = "/Example/Project Outputs"
-        let now = Date()
-        roots = [root]
-        capacity = (0..<24).map { index in
-            .init(date: now.addingTimeInterval(Double(index - 23) * 3600), total: 1_000_000_000_000,
-                  free: 210_000_000_000 - Int64(index) * 4_000_000_000)
+    }
+
+    // A transient live disk reading: no folder enumeration, saved history, or alerts.
+    func refreshPreviewCapacity() async {
+        guard timer == nil else { return }
+        if !loaded && !previewHistoryLoaded {
+            previewHistoryLoaded = true
+            let url = archiveURL
+            let archive = await Task.detached(priority: .utility) {
+                (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(StorageArchive.self, from: $0) }
+            }.value
+            if timer == nil && !loaded, let archive {
+                roots = Array(archive.roots.prefix(8))
+                events = Array(archive.events.suffix(120))
+                capacity = Array(archive.capacity.suffix(1440))
+            }
         }
-        let first = StorageScan(path: root, date: now.addingTimeInterval(-1800), files: ["reviews/old.bin": .init(bytes: 8_000_000_000, modified: 1)], issues: [])
-        let second = StorageScan(path: root, date: now, files: ["reviews/latest.bin": .init(bytes: 14_000_000_000, modified: 2)], issues: [])
-        events = [.comparing(first, to: nil), .comparing(second, to: first)]
+        let sample = await Task.detached(priority: .utility) {
+            let attributes = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory())
+            return StorageCapacity(date: Date(), total: (attributes?[.systemSize] as? NSNumber)?.int64Value ?? 0,
+                                   free: (attributes?[.systemFreeSize] as? NSNumber)?.int64Value ?? 0)
+        }.value
+        guard timer == nil, sample.total > 0 else { return }
+        // This is a current reading, not a fabricated or persisted history series.
+        previewCapacity = sample
     }
 
     func start() {
         guard timer == nil else { return }
+        previewCapacity = nil
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
         }

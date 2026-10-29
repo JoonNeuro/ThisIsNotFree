@@ -77,7 +77,7 @@ private struct CatalogToolCard: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { hub.tab = module.rawValue } label: {
                 VStack(alignment: .leading, spacing: 12) {
-                    ToolPreviewCanvas(module: module).frame(height: 104).clipShape(RoundedRectangle(cornerRadius: 10))
+                    ToolPreviewCanvas(module: module).frame(height: 154).clipShape(RoundedRectangle(cornerRadius: 10))
                     HStack {
                         Image(systemName: module.symbol).foregroundStyle(module.color)
                         Text(module.title).font(.system(size: 13, weight: .semibold))
@@ -157,7 +157,7 @@ struct ModulePreviewDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                ToolPreviewCanvas(module: module, expanded: true).frame(height: 250).clipShape(RoundedRectangle(cornerRadius: 20))
+                ToolPreviewCanvas(module: module, expanded: true).frame(height: 420).clipShape(RoundedRectangle(cornerRadius: 20))
                 VStack(alignment: .leading, spacing: 15) {
                     Text("A closer look").font(.title3.bold())
                     ForEach(module.features, id: \.self) { feature in
@@ -174,7 +174,7 @@ struct ModulePreviewDetail: View {
                         Button("Add Tool") { preferences.activate(module) }.buttonStyle(.borderedProminent)
                     }.padding(18).background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 }
-                Text("Illustrative preview. Live values and controls appear after you add this tool.")
+                Text("This is the actual tool view, using current state. Add the tool to interact with its controls.")
                     .font(.caption2).foregroundStyle(.secondary)
             }.padding(28).frame(maxWidth: 850, alignment: .leading).frame(maxWidth: .infinity)
         }
@@ -182,109 +182,33 @@ struct ModulePreviewDetail: View {
 }
 
 struct ToolPreviewCanvas: View {
+    @EnvironmentObject var hub: UtilityHub
     let module: UtilityModule
     var expanded = false
+    @State private var reader = UUID()
     var body: some View {
         GeometryReader { geometry in
-            ZStack {
-                module.color.opacity(0.075)
-                drawing.frame(width: min(geometry.size.width - 36, expanded ? 420 : 240))
-                    .scaleEffect(expanded ? 1.35 : 1)
+            let sourceWidth: CGFloat = expanded ? min(680, geometry.size.width) : 420
+            let scale = min(geometry.size.width / sourceWidth, 1)
+            ZStack(alignment: .topLeading) {
+                Color(nsColor: .windowBackgroundColor)
+                ActualToolPanel(module: module)
+                    .frame(width: sourceWidth, height: max(380, geometry.size.height / scale), alignment: .top)
+                    .disabled(true)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: expanded ? .top : .topLeading)
                 VStack {
-                    HStack { Spacer(); Text("PREVIEW").font(.system(size: 7, weight: .medium)).tracking(1.1).foregroundStyle(.tertiary) }
                     Spacer()
-                }.padding(10)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }.accessibilityLabel("Illustrative preview of \(module.title)")
-    }
-    @ViewBuilder private var drawing: some View {
-        switch module {
-        case .audio:
-            VStack(spacing: 10) {
-                miniSlider("Browser", symbol: "globe", value: 0.72)
-                miniSlider("Music", symbol: "music.note", value: 0.44)
-                miniSlider("Call", symbol: "phone", value: 0.86)
-            }.padding(.horizontal, 12)
-        case .system:
-            HStack(spacing: 16) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("CPU").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
-                    sparkline(values: [0.2, 0.3, 0.22, 0.6, 0.5, 0.85, 0.5, 0.65, 0.4]).frame(height: 30)
-                }
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("GPU").font(.system(size: 8, weight: .semibold)).foregroundStyle(.secondary)
-                    HStack(alignment: .bottom, spacing: 3) {
-                        ForEach(0..<9) { index in RoundedRectangle(cornerRadius: 2).fill(module.color.opacity(0.3 + Double(index % 3) * 0.2)).frame(height: CGFloat([10, 17, 12, 23, 28, 20, 15, 25, 19][index])) }
-                    }.frame(height: 30)
-                }
-            }.padding(16)
-        case .storage:
-            HStack(spacing: 18) {
-                ZStack { Circle().stroke(module.color.opacity(0.15), lineWidth: 8); Circle().trim(from: 0, to: 0.67).stroke(module.color, style: StrokeStyle(lineWidth: 8, lineCap: .round)).rotationEffect(.degrees(-90)); Image(systemName: "internaldrive").font(.system(size: 17)).foregroundStyle(.secondary) }.frame(width: 52, height: 52)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Space over time").font(.system(size: 8, weight: .medium)).foregroundStyle(.secondary)
-                    sparkline(values: [0.85, 0.78, 0.82, 0.55, 0.6, 0.38, 0.4, 0.2]).frame(height: 24)
-                }
-            }.padding(18)
-        case .awake:
-            HStack(spacing: 20) {
-                Image(systemName: "bolt.shield.fill").font(.system(size: 38, weight: .light)).foregroundStyle(module.color)
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("Keep Awake").font(.system(size: 11, weight: .semibold))
-                    Text("30 min").font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary)
-                    Capsule().fill(module.color.opacity(0.2)).frame(width: 66, height: 4)
-                }
-            }
-        case .displays:
-            HStack(alignment: .bottom, spacing: 18) {
-                display("laptopcomputer", value: 0.72)
-                display("display", value: 0.44)
-            }.padding(18)
-        case .shelf:
-            VStack(spacing: 8) {
-                HStack(spacing: 10) { Image(systemName: "wifi"); Image(systemName: "speaker.wave.2"); Image(systemName: "battery.100percent"); Spacer(); Image(systemName: "0.circle.fill").foregroundStyle(module.color) }
-                    .font(.system(size: 10)).padding(8).background(Color.primary.opacity(0.055), in: Capsule())
-                HStack(spacing: 16) { Image(systemName: "bolt.shield"); Image(systemName: "sun.max"); Image(systemName: "slider.horizontal.3") }
-                    .font(.system(size: 16)).foregroundStyle(module.color).padding(10)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
-            }.padding(.horizontal, 12)
-        case .updates:
-            HStack(spacing: 16) {
-                Image(systemName: "arrow.down.circle").font(.system(size: 36, weight: .light)).foregroundStyle(module.color)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("GitHub Releases").font(.system(size: 11, weight: .semibold))
-                    HStack(spacing: 4) { Image(systemName: "checkmark.shield"); Text("Check for updates") }.font(.system(size: 8)).foregroundStyle(.secondary)
-                }
-            }
+                    HStack { Spacer(); Text("READ-ONLY VIEW").font(.system(size: 7, weight: .medium)).tracking(1)
+                        .padding(5).background(Color(nsColor: .controlBackgroundColor), in: Capsule()) }
+                }.padding(7)
+            }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
         }
-    }
-    private func miniSlider(_ title: String, symbol: String, value: CGFloat) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 9)).frame(width: 12).foregroundStyle(.secondary)
-            Text(title).font(.system(size: 8)).frame(width: 37, alignment: .leading).foregroundStyle(.secondary)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(module.color.opacity(0.13))
-                    Capsule().fill(module.color.opacity(0.7)).frame(width: max(0, geometry.size.width * value))
-                }
-            }.frame(height: 4)
-        }
-    }
-    private func display(_ symbol: String, value: CGFloat) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: symbol).font(.system(size: 33, weight: .light)).foregroundStyle(module.color.opacity(value))
-            Capsule().fill(module.color.opacity(0.55)).frame(width: 52 * value, height: 3).frame(width: 52, alignment: .leading)
-        }
-    }
-    private func sparkline(values: [CGFloat]) -> some View {
-        GeometryReader { geometry in
-            Path { path in
-                for (index, value) in values.enumerated() {
-                    let point = CGPoint(x: geometry.size.width * CGFloat(index) / CGFloat(values.count - 1), y: geometry.size.height * (1 - value))
-                    if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
-                }
-            }.stroke(module.color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-        }
+        .accessibilityLabel("Current read-only view of \(module.title)")
+        .onAppear { hub.acquirePreview(module, reader: reader) }
+        .onDisappear { hub.releasePreview(module, reader: reader) }
     }
 }
 

@@ -84,9 +84,9 @@ struct StorageSummaryView: View {
             HStack {
                 Label("Storage Tracker", systemImage: "internaldrive").font(.headline)
                 Spacer()
-                if let sample = storage.capacity.last { Text(storageBytes(sample.free) + " free").font(.headline.monospacedDigit()) }
+                if let sample = storage.latestCapacity { Text(storageBytes(sample.free) + " free").font(.headline.monospacedDigit()) }
             }
-            if let sample = storage.capacity.last {
+            if let sample = storage.latestCapacity {
                 ProgressView(value: Double(sample.total - sample.free), total: Double(sample.total))
                 Text("\(storageBytes(sample.total - sample.free)) used of \(storageBytes(sample.total)) · startup disk")
                     .font(.caption2).foregroundStyle(.secondary)

@@ -94,15 +94,25 @@ struct ToolContentView: View {
             if !preferences.setupComplete || !preferences.enabled(module) {
                 ModulePreviewDetail(module: module)
             } else {
-                switch module {
-                case .audio:
-                    if let mixer = hub.mixer { MixerView().environmentObject(mixer) }
-                    else { ProgressView("Starting Audio Mixer…") }
-                case .storage: StorageView(storage: hub.storage)
-                case .shelf: ShelfView(shelf: hub.shelf, groups: hub.groups)
-                case .updates: UpdateToolView(updates: hub.updates)
-                default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates, section: module)
-                }
+                ActualToolPanel(module: module)
+            }
+        }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+}
+
+struct ActualToolPanel: View {
+    @EnvironmentObject var hub: UtilityHub
+    let module: UtilityModule
+    var body: some View {
+        Group {
+            switch module {
+            case .audio:
+                if let mixer = hub.mixer ?? hub.previewMixer { MixerView().environmentObject(mixer) }
+                else { ContentUnavailableView("Audio Mixer is not running", systemImage: "speaker.wave.2", description: Text("No audio session has been started.")) }
+            case .storage: StorageView(storage: hub.storage)
+            case .shelf: ShelfView(shelf: hub.shelf, groups: hub.groups, refreshOnAppear: !hub.isRenderingExport)
+            case .updates: UpdateToolView(updates: hub.updates)
+            default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates, section: module, includeDisabled: true)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }

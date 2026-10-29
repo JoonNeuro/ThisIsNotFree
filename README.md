@@ -30,9 +30,9 @@ Custom app images apply to the Dock and branding inside the app. The installed F
 
 ## App window and menu bar layout
 
-The sidebar always lists every tool under **System & Storage**, **Sound & Display**, **Focus & Power**, **Menu Bar**, and **App & Updates**, including tools you have not added. **All Tools** shows searchable preview cards with category filters; **My Toolbox** shows your selections. Clicking a tool opens a larger illustrative preview and feature overview, or its live controls when enabled. Added tools can switch between **Preview** and **Controls**, change their menu bar placement, or be removed from My Toolbox without disappearing from the catalog. Preview illustrations are labeled and contain example visuals, not live readings.
+The sidebar always lists every tool under **System & Storage**, **Sound & Display**, **Focus & Power**, **Menu Bar**, and **App & Updates**, including tools you have not added. **All Tools** shows searchable preview cards with category filters; **My Toolbox** shows your selections. Clicking a tool opens the actual tool view in a larger read-only viewport and a feature overview, or its live controls when enabled. Added tools can switch between **Preview** and **Controls**, change their menu bar placement, or be removed from My Toolbox without disappearing from the catalog. Catalog thumbnails and detail previews render the same native view components as the controls, with live model state. No example app lists, simulated charts, or invented file history are used. Read-only previews disable interactions; unavailable data and ungranted permissions appear as the actual empty/permission state.
 
-A fresh installation enables no services until you add a tool. Existing installations retain their saved selections. The app appears in the Dock; closing its window leaves selected tools running. Menu Bar Layout and Settings remain available at the bottom of the sidebar. Tools work in the app window regardless of menu bar placement.
+A fresh installation enables no control services until you add a tool. Visible previews can read local CPU/memory counters, current disk free space, audio device/process metadata, and already accessible menu items. They do not create audio taps, change gains, start awake sessions, dim displays, scan folders, record history, request permissions, or automatically check GitHub. These read-only observers stop when their previews disappear unless the corresponding tool is enabled. Existing installations retain their saved selections. The app appears in the Dock; closing its window leaves selected tools running. Menu Bar Layout and Settings remain available at the bottom of the sidebar. Tools work in the app window regardless of menu bar placement.
 
 ![Choose tools and where they appear](Docs/layout.png)
 
@@ -115,13 +115,21 @@ zsh Scripts/test.sh
 zsh Scripts/build-app.sh
 ```
 
-Tests cover full catalog category coverage, explicit first-tool activation, custom icon import, bounded image decoding, persistence, independent resets and invalid-file rejection, layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
+Tests cover shared read-only audio-preview lifetime, non-persistent live disk readings, full catalog category coverage, explicit first-tool activation, custom icon import, bounded image decoding, persistence, independent resets and invalid-file rejection, layout presets, mixed placement persistence, enabled-tool icon filtering, layout migration, storage added/removed/grown-file comparisons, incomplete-scan safeguards, sparse-file allocation, nested folders and symlink exclusion, history persistence across relaunch and watch removal, release-version comparison, release-link validation, CPU interval math, system telemetry availability, and synthetic PCM rendering (saved 90% startup, 100→99%, duplex-buffer selection, deinterleaved stereo, and stereo-to-mono downmixing). They do not measure physical speaker output, cross-device routing, or third-party menu interaction.
 
-For local UI layout previews, the app can render only its own views, without capturing the desktop:
+For local layout checks, the app can render its own native views without capturing the desktop. The offline command leaves uncollected data empty:
 
 ```sh
 dist/ThisIsNotFree.app/Contents/MacOS/ThisIsNotFree --export-previews "$PWD/dist/Previews"
 ```
+
+To validate views against current hardware readings without starting control services, use:
+
+```sh
+dist/ThisIsNotFree.app/Contents/MacOS/ThisIsNotFree --export-live-previews "$PWD/dist/LivePreviews"
+```
+
+This samples read-only telemetry and device metadata before rendering. These local images can include your device names and stored folder history. `dist/` is ignored by Git.
 
 GitHub Actions builds the app and runs the test scripts on macOS for pushes and pull requests.
 

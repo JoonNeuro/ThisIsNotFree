@@ -34,6 +34,7 @@ final class MixerModel: ObservableObject {
     @Published private(set) var outputName = "Default Output"
     @Published private(set) var requestingPermission = false
 
+    let readOnly: Bool
     private let engine = TapEngine()
     private var timer: Timer?
     private var processListListener: AudioObjectPropertyListenerBlock?
@@ -43,13 +44,14 @@ final class MixerModel: ObservableObject {
     private var preferredRoutes: [String: String] = UserDefaults.standard.dictionary(forKey: "appOutputDevices") as? [String: String] ?? [:]
     private var preparedProcesses: [ProcessEntry] = []
 
-    init() {
+    init(readOnly: Bool = false) {
+        self.readOnly = readOnly
         installProcessListListener()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
-        requestPermission()
+        if !readOnly { requestPermission() }
     }
 
     deinit {
@@ -80,6 +82,7 @@ final class MixerModel: ObservableObject {
     }
 
     private func prepareSavedProcesses() {
+        guard !readOnly else { return }
         guard preferredVolumes.values.contains(where: { $0 < 1 }) || !preferredRoutes.isEmpty ||
                 outputDevices.contains(where: { !$0.supportsHardwareVolume && $0.volume < 1 }) else { return }
         let known = Set(preparedProcesses.map(\.objectID))
@@ -111,6 +114,7 @@ final class MixerModel: ObservableObject {
     func volume(for app: AudioApp) -> Double { apps.first(where: { $0.id == app.id })?.volume ?? app.volume }
 
     func setVolume(_ value: Double, for app: AudioApp) {
+        guard !readOnly else { return }
         let clamped = min(max(value, 0), 1)
         guard let index = apps.firstIndex(where: { $0.id == app.id }) else { return }
         apps[index].volume = clamped
@@ -135,6 +139,7 @@ final class MixerModel: ObservableObject {
     func outputSelection(for app: AudioApp) -> String { preferredRoutes[app.id] ?? "" }
 
     func setOutputDevice(_ uid: String, for app: AudioApp) {
+        guard !readOnly else { return }
         guard let current = apps.first(where: { $0.id == app.id }) else { return }
         if uid.isEmpty {
             preferredRoutes.removeValue(forKey: app.id)
@@ -172,6 +177,7 @@ final class MixerModel: ObservableObject {
     }
 
     func setOutputVolume(_ value: Double, for device: OutputDevice) {
+        guard !readOnly else { return }
         let clamped = min(max(value, 0), 1)
         guard let index = outputDevices.firstIndex(where: { $0.id == device.id }) else { return }
         let crossedFullVolume = (outputDevices[index].volume == 1) != (clamped == 1)
@@ -207,6 +213,7 @@ final class MixerModel: ObservableObject {
     }
 
     func requestPermission() {
+        guard !readOnly else { return }
         guard outputDeviceID != 0, !requestingPermission else { return }
         requestingPermission = true
         engine.requestPermission(output: outputDeviceID) { [weak self] status in
@@ -244,6 +251,7 @@ final class MixerModel: ObservableObject {
                             volume: previous[key] ?? preferredVolumes[key] ?? 1)
         }
         apps = found.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        guard !readOnly else { return }
         let activeVolumes = Dictionary(uniqueKeysWithValues: found.map { ($0.id, $0.volume) })
         let prepared = processes.filter { entry in
             let target = routedDevice(for: entry.key, original: entry.outputDeviceID)

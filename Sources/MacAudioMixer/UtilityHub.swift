@@ -16,6 +16,10 @@ final class UtilityHub: ObservableObject {
     let menuBarTint = MenuBarTintController()
     let groups = ToolGroups()
     let wifi = WiFiController()
+    @Published private(set) var previewMixer: MixerModel?
+    private var previewReaders: [UtilityModule: Set<UUID>] = [:]
+    private var previewTimer: Timer?
+    var isRenderingExport: Bool { preview }
     @Published private(set) var mixer: MixerModel?
     var openWindow: ((String?) -> Void)?
     @Published var tab = "home"
@@ -28,7 +32,7 @@ final class UtilityHub: ObservableObject {
     init(preferences: HubPreferences, preview: Bool = false) {
         self.preferences = preferences
         self.preview = preview
-        self.storage = StorageTracker(preview: preview)
+        self.storage = StorageTracker()
         self.icons = IconAppearance(preview: preview)
         subscription = preferences.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.configure() }
@@ -40,10 +44,10 @@ final class UtilityHub: ObservableObject {
     }
     func configure() {
         guard !preview else { return }
-        guard preferences.setupComplete else { shutdown(); return }
+        guard preferences.setupComplete else { refreshReadOnlyServices(); return }
         if preferences.enabled(.audio) { if mixer == nil { mixer = MixerModel() } } else { mixer = nil }
         let groupedSystem = preferences.enabled(.shelf) && groups.groups.contains { $0.showInMenuBar && $0.members.contains(where: { ["system:battery", "tool:system"].contains($0) }) }
-        if preferences.enabled(.system) || groupedSystem { system.start() } else { system.stop() }
+        if preferences.enabled(.system) || groupedSystem || previewReaders[.system]?.isEmpty == false { system.start() } else { system.stop() }
         wifi.refresh()
         if preferences.enabled(.storage) { storage.start() } else { storage.stop() }
         if !preferences.enabled(.awake) { awake.stop() }
@@ -51,7 +55,34 @@ final class UtilityHub: ObservableObject {
         if !preferences.enabled(.shelf) || preferences.layout == .window { shelf.restore() }
         else if preferences.layout == .individual { shelf.setCollapsed(false) }
         if preferences.enabled(.updates) { updates.start() } else { updates.stop() }
+        refreshReadOnlyServices()
         menuBarTint.configure(enabled: preferences.menuBarTint, color: preferences.accent.nsColor, strength: preferences.tintStrength)
+    }
+    func acquirePreview(_ module: UtilityModule, reader: UUID) {
+        guard !preview else { return }
+        previewReaders[module, default: []].insert(reader)
+        refreshReadOnlyServices()
+        if module == .storage { Task { await storage.refreshPreviewCapacity() } }
+    }
+    func releasePreview(_ module: UtilityModule, reader: UUID) {
+        guard !preview else { return }
+        previewReaders[module]?.remove(reader)
+        refreshReadOnlyServices()
+    }
+    private func refreshReadOnlyServices() {
+        guard !preview else { return }
+        let activeSystem = preferences.setupComplete && (preferences.enabled(.system) || (preferences.enabled(.shelf) && groups.groups.contains { $0.showInMenuBar && $0.members.contains(where: { ["system:battery", "tool:system"].contains($0) }) }))
+        if activeSystem || previewReaders[.system]?.isEmpty == false { system.start() } else { system.stop() }
+        if previewReaders[.audio]?.isEmpty == false && mixer == nil {
+            if previewMixer == nil { previewMixer = MixerModel(readOnly: true) }
+        } else { previewMixer = nil }
+        if previewReaders[.storage]?.isEmpty == false {
+            if previewTimer == nil {
+                previewTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+                    Task { @MainActor in await self?.storage.refreshPreviewCapacity() }
+                }
+            }
+        } else { previewTimer?.invalidate(); previewTimer = nil }
     }
     func setLaunchAtLogin(_ enabled: Bool) {
         Task {
@@ -63,6 +94,7 @@ final class UtilityHub: ObservableObject {
         }
     }
     func shutdown() {
+        previewTimer?.invalidate(); previewTimer = nil; previewReaders = [:]; previewMixer = nil
         storage.stop(); awake.stop(); displays.restoreAll(); shelf.shutdown(); system.stop(); updates.stop(); menuBarTint.stop(); mixer = nil
     }
 }
@@ -91,6 +123,7 @@ struct DashboardView: View {
     @ObservedObject var displays: DisplayController
     @ObservedObject var updates: UpdateChecker
     var section: UtilityModule? = nil
+    var includeDisabled = false
     @State private var minutes = 30
     var body: some View {
         ScrollView {
@@ -109,15 +142,15 @@ struct DashboardView: View {
                     LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 10) {
                         MetricCard(title: "CPU", value: percent(system.cpu), fraction: system.cpu)
                         MetricCard(title: "GPU", value: percent(system.gpu), fraction: system.gpu)
-                        MetricCard(title: "Memory", value: ByteCountFormatter.string(fromByteCount: Int64(system.memoryUsed), countStyle: .memory), fraction: Double(system.memoryUsed) / Double(system.memoryTotal))
-                        MetricCard(title: "Disk", value: percent(system.diskUsed), fraction: system.diskUsed)
+                        MetricCard(title: "Memory", value: system.hasSample ? ByteCountFormatter.string(fromByteCount: Int64(system.memoryUsed), countStyle: .memory) : "—", fraction: system.hasSample ? Double(system.memoryUsed) / Double(system.memoryTotal) : nil)
+                        MetricCard(title: "Disk", value: system.hasSample ? percent(system.diskUsed) : "—", fraction: system.hasSample ? system.diskUsed : nil)
                     }
-                    Text(system.gpuName + (system.gpu == nil ? " · Usage counter unavailable" : ""))
+                    Text(system.gpuName + (system.gpu == nil ? (system.hasSample ? " · Usage counter unavailable" : " · Waiting for a sample") : ""))
                         .font(.caption2).foregroundStyle(.secondary)
                     HStack {
-                        Label("↓ \(rate(system.download))", systemImage: "network")
+                        Label("↓ \((system.hasNetworkInterval ? rate(system.download) : "—"))", systemImage: "network")
                         Spacer()
-                        Text("↑ \(rate(system.upload))")
+                        Text("↑ \((system.hasNetworkInterval ? rate(system.upload) : "—"))")
                     }.font(.caption.monospacedDigit())
                     if let battery = system.battery {
                         HStack { Label("Battery", systemImage: "battery.100percent"); Spacer(); Text(percent(battery)) }.font(.caption)
@@ -153,7 +186,7 @@ struct DashboardView: View {
             }.padding(16)
         }
     }
-    private func visible(_ module: UtilityModule) -> Bool { preferences.enabled(module) && (section == nil || section == module) }
+    private func visible(_ module: UtilityModule) -> Bool { (includeDisabled || preferences.enabled(module)) && (section == nil || section == module) }
     private func percent(_ value: Double?) -> String { value.map { "\(Int(($0 * 100).rounded()))%" } ?? "—" }
     private func rate(_ bytes: Double) -> String { ByteCountFormatter.string(fromByteCount: Int64(max(bytes, 0)), countStyle: .decimal) + "/s" }
 }
@@ -175,6 +208,7 @@ struct ShelfView: View {
     @ObservedObject var shelf: MenuShelf
     @ObservedObject var groups: ToolGroups
     @State private var search = ""
+    var refreshOnAppear = true
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
@@ -233,7 +267,7 @@ struct ShelfView: View {
                     Text("Section collapsing is unavailable on macOS 27 and later. Shelf shortcuts still work with Accessibility.").font(.caption).foregroundStyle(.secondary)
                 }
             }.padding(16)
-        }.onAppear { shelf.refresh() }
+        }.onAppear { if refreshOnAppear { shelf.refresh() } }
     }
 }
 
@@ -331,7 +365,7 @@ struct GroupPanelView: View {
         case "tool:system":
             HStack {
                 MetricCard(title: "CPU", value: system.cpu.map { "\(Int(($0 * 100).rounded()))%" } ?? "—", fraction: system.cpu)
-                MetricCard(title: "Memory", value: ByteCountFormatter.string(fromByteCount: Int64(system.memoryUsed), countStyle: .memory), fraction: Double(system.memoryUsed) / Double(system.memoryTotal))
+                MetricCard(title: "Memory", value: system.hasSample ? ByteCountFormatter.string(fromByteCount: Int64(system.memoryUsed), countStyle: .memory) : "—", fraction: system.hasSample ? Double(system.memoryUsed) / Double(system.memoryTotal) : nil)
             }
         case "tool:storage":
             if preferences.enabled(.storage) {
