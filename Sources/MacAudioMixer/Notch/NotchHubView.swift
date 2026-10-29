@@ -14,7 +14,9 @@ final class NotchEdgeView: NSView {
         let width = CGFloat(geometry.calibration.thickness)
         let paths = geometry.paths
         if drawHousing {
-            let points = paths[.wifi]!.points + paths[.battery]!.points + paths[.volume]!.points
+            var reference = geometry.calibration; reference.layout = .contour
+            let contour = NotchGeometry(width: geometry.width, height: geometry.height, calibration: reference).paths
+            let points = contour[.wifi]!.points + contour[.battery]!.points + contour[.volume]!.points
             let shape = NSBezierPath(); shape.move(to: points[0]); points.dropFirst().forEach { shape.line(to: $0) }; shape.close()
             NSColor.black.setFill(); shape.fill()
         }
@@ -28,7 +30,8 @@ final class NotchEdgeView: NSView {
         if status.batteries.isEmpty { bottom.stroke(.white.withAlphaComponent(0.18), width: width) }
         else {
             let count = status.batteries.count
-            let gap = CGFloat(geometry.calibration.separation) + width
+            let gap = geometry.calibration.sideOnly ? min(CGFloat(geometry.calibration.separation), bottom.length / CGFloat(count * 3)) : CGFloat(geometry.calibration.separation) + width
+            let cap: NSBezierPath.LineCapStyle = geometry.calibration.sideOnly && count > 1 ? .butt : .round
             let usable = max(0, bottom.length - gap * CGFloat(count - 1))
             // A stable, larger first section belongs to the MacBook when present.
             let hasMac = status.batteries.first?.id == "mac"
@@ -38,14 +41,15 @@ final class NotchEdgeView: NSView {
                 let length = usable / units * (hasMac && count > 1 && i == 0 ? 2 : 1)
                 let rail = bottom.slice(offset, offset + length)
                 let color = colors[i % colors.count]
-                rail.stroke(color.withAlphaComponent(0.22), width: width)
-                rail.slice(0, rail.length * battery.level).stroke(color, width: width)
+                rail.stroke(color.withAlphaComponent(0.22), width: width, cap: cap)
+                rail.slice(0, rail.length * battery.level).stroke(color, width: width, cap: cap)
                 offset += length + gap
             }
         }
-        let volume = paths[.volume]!
-        volume.stroke(NSColor.white.withAlphaComponent(0.2), width: width)
-        if let value = status.volume { volume.slice(0, volume.length * value).stroke(NSColor(calibratedRed: 1, green: 0.92, blue: 0.72, alpha: 1), width: width) }
+        if let volume = paths[.volume] {
+            volume.stroke(NSColor.white.withAlphaComponent(0.2), width: width)
+            if let value = status.volume { volume.slice(0, volume.length * value).stroke(NSColor(calibratedRed: 1, green: 0.92, blue: 0.72, alpha: 1), width: width) }
+        }
     }
     override func mouseDown(with event: NSEvent) {
         guard let zone = geometry?.zone(at: convert(event.locationInWindow, from: nil)) else { return }
@@ -86,6 +90,9 @@ struct NotchHubSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Notch Hub").font(.headline)
+                Picker("Layout", selection: Binding(get: { model.calibration.layout ?? .sides }, set: { model.calibration.layout = $0 })) {
+                    ForEach(NotchLayout.allCases) { Text($0.title).tag($0) }
+                }.pickerStyle(.segmented)
                 if let geometry = model.geometry {
                     VStack(spacing: 10) {
                         NotchEdgePreview(geometry: geometry, status: model.status)
@@ -101,7 +108,9 @@ struct NotchHubSettingsView: View {
                         .frame(height: 155)
                 }
                 HStack { Circle().fill(.mint).frame(width: 7, height: 7); Text(model.status.wifiText).font(.caption) }
-                HStack { Circle().fill(.yellow).frame(width: 7, height: 7); Text(model.status.volume.map { "Output volume \(Int(($0 * 100).rounded()))%" } ?? "Output volume unavailable for this device").font(.caption) }
+                if !model.calibration.sideOnly {
+                    HStack { Circle().fill(.yellow).frame(width: 7, height: 7); Text(model.status.volume.map { "Output volume \(Int(($0 * 100).rounded()))%" } ?? "Output volume unavailable for this device").font(.caption) }
+                }
                 ForEach(Array(model.status.batteries.enumerated()), id: \.element.id) { index, battery in
                     HStack { Circle().fill(index == 0 ? Color.mint : Color.cyan).frame(width: 7, height: 7); Text(battery.name).font(.caption); Spacer(); Text("\(Int((battery.level * 100).rounded()))%").font(.caption.monospacedDigit()) }
                 }
@@ -111,12 +120,12 @@ struct NotchHubSettingsView: View {
                 Text("Click each edge to press its original menu bar item. Popup placement is controlled by macOS. Keep the original items available; some hidden items are not exposed.").font(.caption).foregroundStyle(.secondary)
                 if !shelf.accessibilityGranted { Button("Allow Accessibility") { shelf.requestAccessibility() }.buttonStyle(.borderedProminent) }
                 HStack {
-                    ForEach(NotchZone.allCases) { zone in Button(zone.title) { model.open(zone) } }
+                    ForEach(activeZones) { zone in Button(zone.title) { model.open(zone) } }
                     Button { shelf.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh menu items")
                 }
                 if let message = shelf.message { Text(message).font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
                 DisclosureGroup("Choose original menu items") {
-                    ForEach(NotchZone.allCases) { zone in
+                    ForEach(activeZones) { zone in
                         Picker(zone.title, selection: Binding(get: { model.calibration.menuItems[zone.rawValue] ?? "" }, set: { model.calibration.menuItems[zone.rawValue] = $0.isEmpty ? nil : $0 })) {
                             Text("Detect automatically").tag("")
                             ForEach(shelf.items) { item in Text("\(item.appName) · \(item.title)").tag(item.id) }
@@ -125,11 +134,13 @@ struct NotchHubSettingsView: View {
                 }.font(.caption)
                 Divider()
                 Text("Contour calibration").font(.headline)
-                Text("Position and size follow the display's safe-area geometry. macOS does not publish the physical corner curves: adjust these while viewing the real edge. Wi-Fi always uses three dashes.").font(.caption).foregroundStyle(.secondary)
+                Text(model.calibration.sideOnly ? "Three Wi-Fi dots on the left, a vertical battery rail on the right. No bottom line. Placement follows the display's measured camera region." : "Position and size follow the display's safe-area geometry. Corner curves are an approximation. Wi-Fi uses three curved dashes.").font(.caption).foregroundStyle(.secondary)
                 adjustment("Line thickness", \.thickness, 1...4)
                 adjustment("Section gap", \.separation, 2...7)
-                adjustment("Upper shoulder", \.shoulder, 0...12)
-                adjustment("Lower curve", \.corner, 2...16)
+                if !model.calibration.sideOnly {
+                    adjustment("Upper shoulder", \.shoulder, 0...12)
+                    adjustment("Lower curve", \.corner, 2...16)
+                }
                 adjustment("Width adjustment", \.widthAdjustment, -16...16)
                 adjustment("Height adjustment", \.heightAdjustment, -8...8)
                 Button("Reset Contour") { model.resetCalibration() }
@@ -137,6 +148,7 @@ struct NotchHubSettingsView: View {
             }.padding(18)
         }
     }
+    private var activeZones: [NotchZone] { model.calibration.sideOnly ? [.wifi, .battery] : NotchZone.allCases }
     private func adjustment(_ title: String, _ key: WritableKeyPath<NotchCalibration, Double>, _ range: ClosedRange<Double>) -> some View {
         HStack {
             Text(title).frame(width: 115, alignment: .leading)

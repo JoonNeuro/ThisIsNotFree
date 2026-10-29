@@ -10,13 +10,24 @@ enum NotchZone: String, CaseIterable, Identifiable {
 }
 
 struct NotchCalibration: Codable, Equatable {
-    var shoulder: Double = 5
-    var corner: Double = 9
-    var thickness: Double = 2
+    // Public boring.notch / DynamicNotchKit shape defaults, not an Apple
+    // engineering specification. See docs/notch-geometry.md.
+    var shoulder: Double = 6
+    var corner: Double = 14
+    var thickness: Double = 3
     var separation: Double = 3
     var widthAdjustment: Double = 0
     var heightAdjustment: Double = 0
     var menuItems: [String: String] = [:]
+    // Optional for compatibility with preferences written before layouts existed.
+    var layout: NotchLayout?
+    var sideOnly: Bool { layout != .contour }
+}
+
+enum NotchLayout: String, Codable, CaseIterable, Identifiable {
+    case sides, contour
+    var id: String { rawValue }
+    var title: String { self == .sides ? "Side Indicators" : "Full Contour" }
 }
 
 struct NotchPolyline {
@@ -46,11 +57,11 @@ struct NotchPolyline {
             return hypot(point.x - p.x - t * dx, point.y - p.y - t * dy)
         }.min() ?? .infinity
     }
-    func stroke(_ color: NSColor, width: CGFloat) {
+    func stroke(_ color: NSColor, width: CGFloat, cap: NSBezierPath.LineCapStyle = .round) {
         guard let first = points.first, points.count > 1 else { return }
         let path = NSBezierPath(); path.move(to: first)
         points.dropFirst().forEach { path.line(to: $0) }
-        path.lineWidth = width; path.lineCapStyle = .round; path.lineJoinStyle = .round
+        path.lineWidth = width; path.lineCapStyle = cap; path.lineJoinStyle = .round
         color.setStroke(); path.stroke()
     }
 }
@@ -64,8 +75,16 @@ struct NotchGeometry {
     // Flipped coordinates: top display edge is y=0. Offset the centerline so the
     // stroke lies outside the camera housing, rather than being clipped by it.
     var paths: [NotchZone: NotchPolyline] {
-        let offset = CGFloat(calibration.thickness) / 2 + 0.5
+        let offset = CGFloat(calibration.thickness) / 2
         let l = padding - offset, r = padding + width + offset, bottom = height + offset
+        if calibration.sideOnly {
+            // Stay beside the straight side between the shoulder and lower curve.
+            let top = max(offset + 1, min(CGFloat(calibration.shoulder), height * 0.3))
+            let end = max(top + CGFloat(calibration.thickness) * 2.5,
+                          height - min(CGFloat(calibration.corner), height * 0.5))
+            return [.wifi: .init(points: [.init(x: l, y: top), .init(x: l, y: end)]),
+                    .battery: .init(points: [.init(x: r, y: end), .init(x: r, y: top)])]
+        }
         let upper = min(CGFloat(calibration.shoulder), height * 0.45)
         let lower = min(CGFloat(calibration.corner) + offset, height * 0.55)
         func curve(_ a: CGPoint, _ c: CGPoint, _ b: CGPoint) -> [CGPoint] {
@@ -90,6 +109,13 @@ struct NotchGeometry {
     }
     func wifiDashes() -> [NotchPolyline] {
         let path = paths[.wifi]!
+        if calibration.sideOnly {
+            // Tiny round-capped strokes form three actual dots, not dashes.
+            return (0..<3).map { index in
+                let center = path.length * CGFloat(index) / 2
+                return path.slice(max(0, center - 0.01), min(path.length, center + 0.01))
+            }
+        }
         let gap = CGFloat(calibration.separation + calibration.thickness)
         let dash = max(0, (path.length - gap * 2) / 3)
         return (0..<3).map { i in path.slice(CGFloat(i) * (dash + gap), CGFloat(i) * (dash + gap) + dash) }

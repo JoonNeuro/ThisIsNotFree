@@ -3,7 +3,8 @@ import XCTest
 
 final class NotchTests: XCTestCase {
     func testCurvedContourHasThreeSeparatedWiFiDashesAndNoTopLine() {
-        let geometry = NotchGeometry(width: 180, height: 32, calibration: .init())
+        var settings = NotchCalibration(); settings.layout = .contour
+        let geometry = NotchGeometry(width: 180, height: 32, calibration: settings)
         let paths = geometry.paths
         let wifi = paths[.wifi]!, volume = paths[.volume]!, battery = paths[.battery]!
         let dashes = geometry.wifiDashes()
@@ -15,8 +16,8 @@ final class NotchTests: XCTestCase {
         })
         XCTAssertTrue(wifi.points.contains { $0.x < geometry.padding && $0.y > 0 })
         XCTAssertGreaterThan(Set(wifi.points.map(\.x)).count, 20, "The edge must follow curves, not three straight bars")
-        XCTAssertEqual(wifi.points.first!.y, 0)
-        XCTAssertEqual(volume.points.last!.y, 0)
+        XCTAssertEqual(wifi.points.first!.y, 0, accuracy: 0.000001)
+        XCTAssertEqual(volume.points.last!.y, 0, accuracy: 0.000001)
         XCTAssertEqual(battery.points.first!.y, battery.points.last!.y)
         XCTAssertLessThan(wifi.points.last!.x, battery.points.first!.x)
         XCTAssertLessThan(battery.points.last!.x, volume.points.first!.x)
@@ -38,7 +39,7 @@ final class NotchTests: XCTestCase {
     func testContourScalesAndHitRegionsStayOnTheEdge() {
         for height in [20.0, 32, 38] {
             for width in [140.0, 180, 220] {
-                var calibration = NotchCalibration(); calibration.separation = 7; calibration.thickness = 4
+                var calibration = NotchCalibration(); calibration.layout = .contour; calibration.separation = 7; calibration.thickness = 4
                 let geometry = NotchGeometry(width: width, height: height, calibration: calibration)
                 for (zone, path) in geometry.paths {
                     XCTAssertGreaterThan(path.length, 0)
@@ -49,4 +50,24 @@ final class NotchTests: XCTestCase {
             }
         }
     }
+    func testDefaultSideLayoutHasExactlyThreeDotsAndNoBottomHitRegion() {
+        let geometry = NotchGeometry(width: 185, height: 32, calibration: .init())
+        XCTAssertEqual(Set(geometry.paths.keys), [.wifi, .battery])
+        let dots = geometry.wifiDashes()
+        XCTAssertEqual(dots.count, 3)
+        XCTAssertTrue(dots.allSatisfy { $0.length > 0 && $0.length < 0.1 })
+        let battery = geometry.paths[.battery]!
+        XCTAssertEqual(battery.points.first!.x, battery.points.last!.x)
+        XCTAssertGreaterThan(battery.points.first!.y, battery.points.last!.y)
+        XCTAssertNil(geometry.zone(at: .init(x: geometry.size.width/2, y: geometry.height)))
+        XCTAssertNil(geometry.zone(at: .init(x: geometry.size.width/2, y: 5)))
+    }
+
+    func testOldPreferencesDecodeIntoSideLayoutWithoutLosingMenuMapping() throws {
+        let data = Data(#"{"shoulder":5,"corner":9,"thickness":2,"separation":3,"widthAdjustment":0,"heightAdjustment":0,"menuItems":{"wifi":"saved-item"}}"#.utf8)
+        let decoded = try JSONDecoder().decode(NotchCalibration.self, from: data)
+        XCTAssertTrue(decoded.sideOnly)
+        XCTAssertEqual(decoded.menuItems["wifi"], "saved-item")
+    }
+
 }

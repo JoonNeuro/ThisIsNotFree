@@ -29,6 +29,13 @@ final class NotchHubController: ObservableObject {
     init(shelf: MenuShelf, defaults: UserDefaults = .standard) {
         self.shelf = shelf; self.defaults = defaults
         calibration = defaults.data(forKey: "notch.calibration").flatMap { try? JSONDecoder().decode(NotchCalibration.self, from: $0) } ?? .init()
+        if calibration.layout == nil {
+            calibration.layout = .sides
+            calibration.thickness = max(3, calibration.thickness)
+            if calibration.shoulder == 5 { calibration.shoulder = 6 }
+            if calibration.corner == 9 { calibration.corner = 14 }
+            if let data = try? JSONEncoder().encode(calibration) { defaults.set(data, forKey: "notch.calibration") }
+        }
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in Task { @MainActor in self?.updateScreens() } }.store(in: &observers)
         NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)

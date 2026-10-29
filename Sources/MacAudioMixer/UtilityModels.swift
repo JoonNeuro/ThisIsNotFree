@@ -38,7 +38,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "Keep your display awake for a set time."
         case .displays: return "Dim each screen with a click-through shade."
         case .shelf: return "Pin menu items and collapse a menu bar section."
-        case .notch: return "Wi-Fi, battery, and sound along the camera edge."
+        case .notch: return "Wi-Fi dots and a battery rail beside the camera."
         case .storage: return "Disk space history and watched-folder changes."
         case .updates: return "Check this project's GitHub releases."
         }
@@ -69,7 +69,7 @@ extension UtilityModule {
         case .displays: return ["Independent software dimming for each display", "Quickly restore every screen", "Click-through shades removed when the app quits"]
         case .awake: return ["Prevent idle system and display sleep", "Set a timer or keep awake until stopped", "Closing the lid and manual Sleep still work"]
         case .shelf: return ["Collect accessible menu items in one popup", "Mix built-in controls and third-party shortcuts", "Collapse a manually arranged section on supported macOS"]
-        case .notch: return ["Three Wi-Fi dashes and a curved volume edge", "Split battery rail for connected devices with reported levels", "Open original system menus with Accessibility; calibrate the contour"]
+        case .notch: return ["Three vertical Wi-Fi dots on the left", "A vertical battery rail on the right, with accessory segments", "Open original system menus; optional full-contour layout"]
         case .updates: return ["Check this project's published GitHub releases", "Optional update notifications", "Open verified release pages to download updates"]
         }
     }
