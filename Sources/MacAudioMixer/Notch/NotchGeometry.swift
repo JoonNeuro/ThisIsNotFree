@@ -11,7 +11,7 @@ enum NotchZone: String, CaseIterable, Identifiable {
 
 struct NotchCalibration: Codable, Equatable {
     // Public boring.notch / DynamicNotchKit shape defaults, not an Apple
-    // engineering specification. See docs/notch-geometry.md.
+    // engineering specification. See Docs/notch-geometry.md.
     var shoulder: Double = 6
     var corner: Double = 14
     var thickness: Double = 3
