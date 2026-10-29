@@ -5,7 +5,7 @@ import MixerCore
 import SwiftUI
 
 enum UtilityModule: String, CaseIterable, Identifiable {
-    case system, audio, awake, displays, shelf, storage, updates
+    case system, audio, awake, displays, shelf, notch, storage, updates
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -14,6 +14,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "Keep Awake"
         case .displays: return "Display Dimming"
         case .shelf: return "Menu Bar Shelf"
+        case .notch: return "Notch Hub"
         case .storage: return "Storage Tracker"
         case .updates: return "GitHub Updates"
         }
@@ -25,6 +26,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "bolt.shield.fill"
         case .displays: return "sun.max"
         case .shelf: return "archivebox"
+        case .notch: return "macbook.gen2"
         case .storage: return "internaldrive"
         case .updates: return "arrow.down.circle"
         }
@@ -36,6 +38,7 @@ enum UtilityModule: String, CaseIterable, Identifiable {
         case .awake: return "Keep your display awake for a set time."
         case .displays: return "Dim each screen with a click-through shade."
         case .shelf: return "Pin menu items and collapse a menu bar section."
+        case .notch: return "Wi-Fi, battery, and sound along the camera edge."
         case .storage: return "Disk space history and watched-folder changes."
         case .updates: return "Check this project's GitHub releases."
         }
@@ -53,10 +56,10 @@ enum ToolCategory: String, CaseIterable, Identifiable {
 
 extension UtilityModule {
     var category: ToolCategory {
-        switch self { case .system, .storage: return .system; case .audio, .displays: return .sound; case .awake: return .focus; case .shelf: return .menuBar; case .updates: return .app }
+        switch self { case .system, .storage: return .system; case .audio, .displays: return .sound; case .awake: return .focus; case .shelf, .notch: return .menuBar; case .updates: return .app }
     }
     var color: Color {
-        switch self { case .system: return .mint; case .storage: return .orange; case .audio: return .purple; case .displays: return .yellow; case .awake: return .cyan; case .shelf: return .pink; case .updates: return .green }
+        switch self { case .system: return .mint; case .storage: return .orange; case .audio: return .purple; case .displays: return .yellow; case .awake: return .cyan; case .shelf: return .pink; case .notch: return .mint; case .updates: return .green }
     }
     var features: [String] {
         switch self {
@@ -66,6 +69,7 @@ extension UtilityModule {
         case .displays: return ["Independent software dimming for each display", "Quickly restore every screen", "Click-through shades removed when the app quits"]
         case .awake: return ["Prevent idle system and display sleep", "Set a timer or keep awake until stopped", "Closing the lid and manual Sleep still work"]
         case .shelf: return ["Collect accessible menu items in one popup", "Mix built-in controls and third-party shortcuts", "Collapse a manually arranged section on supported macOS"]
+        case .notch: return ["Three Wi-Fi dashes and a curved volume edge", "Split battery rail for connected devices with reported levels", "Open original system menus with Accessibility; calibrate the contour"]
         case .updates: return ["Check this project's published GitHub releases", "Optional update notifications", "Open verified release pages to download updates"]
         }
     }

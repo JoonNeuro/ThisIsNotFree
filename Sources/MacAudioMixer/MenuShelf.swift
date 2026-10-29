@@ -22,6 +22,7 @@ final class MenuShelf: ObservableObject {
     let supportsCollapse = ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
     private var divider: NSStatusItem?
     private let queue = DispatchQueue(label: "ThisIsNotFree.accessibility", qos: .userInitiated)
+    private var refreshCompletions: [() -> Void] = []
 
     var pinnedItems: [ShelfItem] {
         pinned.compactMap { id in items.first(where: { $0.id == id }) }
@@ -35,9 +36,11 @@ final class MenuShelf: ObservableObject {
         }
     }
 
-    func refresh() {
+    func refresh(completion: (() -> Void)? = nil) {
         accessibilityGranted = AXIsProcessTrusted()
-        guard accessibilityGranted, !refreshing else { return }
+        guard accessibilityGranted else { completion?(); return }
+        if let completion { refreshCompletions.append(completion) }
+        guard !refreshing else { return }
         refreshing = true
         let apps = NSWorkspace.shared.runningApplications.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .map { ($0.processIdentifier, $0.bundleIdentifier ?? "pid:\($0.processIdentifier)", $0.localizedName ?? "Application", $0.icon) }
@@ -68,7 +71,30 @@ final class MenuShelf: ObservableObject {
             let unique = found.reduce(into: [ShelfItem]()) { result, item in
                 if !result.contains(where: { $0.id == item.id }) { result.append(item) }
             }
-            Task { @MainActor [weak self] in self?.items = unique; self?.refreshing = false }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.items = unique; self.refreshing = false
+                let completions = self.refreshCompletions; self.refreshCompletions = []
+                completions.forEach { $0() }
+            }
+        }
+    }
+
+    func openSystemMenu(_ kind: NotchZone, preferredID: String? = nil) {
+        guard AXIsProcessTrusted() else {
+            requestAccessibility()
+            message = "Allow Accessibility, then click the edge again to open the original system menu."
+            return
+        }
+        refresh { [weak self] in
+            guard let self else { return }
+            let match = preferredID.flatMap { id in self.items.first { $0.id == id } } ?? self.items.first { item in
+                guard item.id.hasPrefix("com.apple.controlcenter:") || item.id.hasPrefix("com.apple.systemuiserver:") else { return false }
+                let key = (item.id + " " + item.title).lowercased().filter { $0.isLetter || $0.isNumber }
+                return kind.menuKeys.contains { key.contains($0) }
+            }
+            if let match { self.activate(match) }
+            else { self.message = "The original \(kind.title) menu is not exposed. Show its icon in macOS Menu Bar settings, or select its menu item in Notch Hub. No replacement menu was opened." }
         }
     }
 

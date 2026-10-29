@@ -112,6 +112,7 @@ struct ActualToolPanel: View {
             case .storage: StorageView(storage: hub.storage)
             case .shelf: ShelfView(shelf: hub.shelf, groups: hub.groups, refreshOnAppear: !hub.isRenderingExport)
             case .updates: UpdateToolView(updates: hub.updates)
+            case .notch: NotchHubSettingsView(model: hub.notch, shelf: hub.shelf)
             default: DashboardView(system: hub.system, awake: hub.awake, displays: hub.displays, updates: hub.updates, section: module, includeDisabled: true)
             }
         }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

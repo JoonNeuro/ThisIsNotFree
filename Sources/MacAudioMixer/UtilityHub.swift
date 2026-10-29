@@ -10,6 +10,7 @@ final class UtilityHub: ObservableObject {
     let awake = AwakeController()
     let displays = DisplayController()
     let shelf = MenuShelf()
+    lazy var notch = NotchHubController(shelf: shelf)
     let updates = UpdateChecker()
     let icons: IconAppearance
     let storage: StorageTracker
@@ -50,6 +51,7 @@ final class UtilityHub: ObservableObject {
         if preferences.enabled(.system) || groupedSystem || previewReaders[.system]?.isEmpty == false { system.start() } else { system.stop() }
         wifi.refresh()
         if preferences.enabled(.storage) { storage.start() } else { storage.stop() }
+        if preferences.enabled(.notch) { notch.start() } else { notch.stop() }
         if !preferences.enabled(.awake) { awake.stop() }
         if !preferences.enabled(.displays) { displays.restoreAll() }
         if !preferences.enabled(.shelf) || preferences.layout == .window { shelf.restore() }
@@ -73,6 +75,7 @@ final class UtilityHub: ObservableObject {
         guard !preview else { return }
         let activeSystem = preferences.setupComplete && (preferences.enabled(.system) || (preferences.enabled(.shelf) && groups.groups.contains { $0.showInMenuBar && $0.members.contains(where: { ["system:battery", "tool:system"].contains($0) }) }))
         if activeSystem || previewReaders[.system]?.isEmpty == false { system.start() } else { system.stop() }
+        notch.setPreviewVisible(previewReaders[.notch]?.isEmpty == false)
         if previewReaders[.audio]?.isEmpty == false && mixer == nil {
             if previewMixer == nil { previewMixer = MixerModel(readOnly: true) }
         } else { previewMixer = nil }
@@ -95,7 +98,7 @@ final class UtilityHub: ObservableObject {
     }
     func shutdown() {
         previewTimer?.invalidate(); previewTimer = nil; previewReaders = [:]; previewMixer = nil
-        storage.stop(); awake.stop(); displays.restoreAll(); shelf.shutdown(); system.stop(); updates.stop(); menuBarTint.stop(); mixer = nil
+        notch.shutdown(); storage.stop(); awake.stop(); displays.restoreAll(); shelf.shutdown(); system.stop(); updates.stop(); menuBarTint.stop(); mixer = nil
     }
 }
 

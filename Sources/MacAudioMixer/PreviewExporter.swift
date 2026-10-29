@@ -32,11 +32,13 @@ enum PreviewExporter {
         }
         if live {
             let reader = UUID()
-            for module in [UtilityModule.system, .audio, .storage] { hub.acquirePreview(module, reader: reader) }
+            for module in [UtilityModule.system, .audio, .storage, .notch] { hub.acquirePreview(module, reader: reader) }
             try await Task.sleep(for: .milliseconds(2300))
             try render("live-catalog", view: WorkspaceView())
             hub.tab = "storage"
             try render("live-storage", view: WorkspaceView())
+            hub.tab = "notch"
+            try render("live-notch", view: WorkspaceView())
             hub.shutdown()
             return
         }

@@ -59,6 +59,7 @@ Existing-item tiles use their owning app's icon and press the original accessibl
 | Keep Awake | Prevent idle display and system sleep for 15 minutes, 30 minutes, one hour, two hours, or until stopped. Uses a shield-and-bolt icon. |
 | Display Dimming | Independent, click-through software shades for connected displays, with a Restore All button. |
 | Menu Bar Shelf | Discover menu items with Accessibility, pin them, and open their original menus. A collapsible section hides icons on supported macOS versions. |
+| Notch Hub | A curved edge around the camera housing: three Wi-Fi dashes, a split battery rail, and output volume. Click each section to open its original macOS menu. |
 | Groups | Combine Wi-Fi, battery, built-in controls, and other apps' menu items under custom menu bar icons. Choose each group's name, icon, visibility, and item order. |
 | Appearance | System/light/dark window and popup style, accent colors, optional colored toolbox icons, and a click-through menu bar tint. |
 | GitHub Updates | Check published stable GitHub releases every six hours, show an in-app update message, and optionally send a notification. |
@@ -71,6 +72,16 @@ Open **Menu Bar Shelf → Menu Bar Groups** in the app and choose **Custom Mix**
 The shelf uses the owning app's icon as a tile; it does not capture your screen to recreate live third-party status icons. Accessibility is needed to discover and press other apps' menu items. Some apps do not expose an accessible menu item or do not support the Press action.
 
 To hide originals on macOS 14–26, enable the collapsible section, hold **Command**, and drag icons to the left of the **│** divider. **Collapse Icons** pushes that section off-screen; **Reveal Icons**, **Restore Menu Bar**, or **Option-clicking the toolbox icon** brings it back. The section starts expanded each launch. macOS controls item positions and can limit this method in some layouts. Section collapsing is disabled on macOS 27 and newer; shelf shortcuts and groups remain available. macOS's own Menu Bar settings can hide supported system originals separately. Adding an item to a group does not remove its original icon automatically.
+
+## Notch Hub
+
+Add **Notch Hub** from the Menu Bar category. Its overlay is independent of where its toolbox shortcut is placed. It follows screens that report a camera housing and disappears when disabled or when those screens disconnect. A display without a notch gets no simulated cutout.
+
+The left shoulder and curve use exactly three Wi-Fi signal dashes. The lower rail shows the MacBook battery first, followed by connected accessories with reported battery data; the right curve shows the default output device's volume. Small gaps separate Wi-Fi, batteries, and volume. Unknown levels stay dim instead of displaying invented percentages. Output devices without a readable hardware volume control show an unavailable level. Battery status is sampled every two seconds; Bluetooth accessory metadata is read locally with `system_profiler` once a minute. AirPods/case values are not always exposed by macOS. No audio capture is started by this tool.
+
+Click a section to press the original Wi-Fi, Battery, or Sound menu using Accessibility. Allow Accessibility in the tool's controls. If automatic matching fails, refresh and choose the original menu item explicitly. A hidden or unavailable original may not be exposed, and macOS controls where its popup opens. The app does not substitute an imitation system menu or automatically remove original icons.
+
+Screen position and bounds use `NSScreen` safe-area and auxiliary regions. These APIs do not expose the physical corner radii. Use **Contour calibration** to fit the shoulder, lower curve, width, height, line thickness, and gaps on the actual MacBook display. Defaults are an approximation, not a measured contour for every model. Only a narrow corridor around the colored path receives clicks; the transparent camera interior and surrounding screen remain click-through. No Screen Recording permission is used.
 
 ## Storage history
 
