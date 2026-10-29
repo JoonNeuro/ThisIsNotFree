@@ -23,6 +23,7 @@ final class UtilityHub: ObservableObject {
     var isRenderingExport: Bool { preview }
     @Published private(set) var mixer: MixerModel?
     var openWindow: ((String?) -> Void)?
+    var openShelfBar: (() -> Void)?
     @Published var tab = "home"
     @Published var loginError: String?
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -65,6 +66,7 @@ final class UtilityHub: ObservableObject {
         previewReaders[module, default: []].insert(reader)
         refreshReadOnlyServices()
         if module == .storage { Task { await storage.refreshPreviewCapacity() } }
+        if module == .shelf { shelf.refresh() }
     }
     func releasePreview(_ module: UtilityModule, reader: UUID) {
         guard !preview else { return }
@@ -215,6 +217,8 @@ struct ShelfView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
+                ShelfOrganizerView(shelf: shelf)
+                Divider()
                 GroupEditorView(groups: groups, shelf: shelf)
                 Divider()
                 HStack {
@@ -222,6 +226,7 @@ struct ShelfView: View {
                     Spacer()
                     Button { shelf.refresh() } label: { Image(systemName: "arrow.clockwise") }.disabled(shelf.refreshing)
                 }
+                Text("A popup of shortcuts to existing menu bar items. Choose Preview above to watch the menu bar icon open the actual popup. Clicking a tile opens that item's original menu; it does not move the original icon into this app.").font(.caption).foregroundStyle(.secondary)
                 if !shelf.accessibilityGranted {
                     Text("Allow Accessibility to discover menu bar items and open their original menus from your shelf.").font(.subheadline).foregroundStyle(.secondary)
                     Button("Enable Accessibility") { shelf.requestAccessibility() }.buttonStyle(.borderedProminent)

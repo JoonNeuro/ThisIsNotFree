@@ -7,7 +7,7 @@ let package = Package(
     products: [.executable(name: "ThisIsNotFree", targets: ["MacAudioMixer"])],
     targets: [
         .target(name: "MixerCore", publicHeadersPath: "include", linkerSettings: [.linkedFramework("CoreAudio"), .linkedFramework("Foundation"), .linkedFramework("IOKit")]),
-        .executableTarget(name: "MacAudioMixer", dependencies: ["MixerCore"], linkerSettings: [.linkedFramework("CoreAudio"), .linkedFramework("AppKit"), .linkedFramework("SwiftUI"), .linkedFramework("Metal"), .linkedFramework("UserNotifications"), .linkedFramework("ApplicationServices"), .linkedFramework("CoreWLAN")]),
+        .executableTarget(name: "MacAudioMixer", dependencies: ["MixerCore"], linkerSettings: [.linkedFramework("CoreAudio"), .linkedFramework("AppKit"), .linkedFramework("SwiftUI"), .linkedFramework("Metal"), .linkedFramework("UserNotifications"), .linkedFramework("ApplicationServices"), .linkedFramework("CoreWLAN"), .linkedFramework("ScreenCaptureKit")]),
         .testTarget(name: "UtilityTests", dependencies: ["MacAudioMixer"])
     ]
 )

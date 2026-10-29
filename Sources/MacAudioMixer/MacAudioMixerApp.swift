@@ -19,6 +19,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     private var mainWindow: NSWindow?
     private var moduleItems: [UtilityModule: NSStatusItem] = [:]
     private let toolPopover = NSPopover()
+    private let shelfBar = ShelfBarController()
     private var currentTool: UtilityModule?
     private var cpuItem: NSStatusItem?
     private var gpuItem: NSStatusItem?
@@ -45,6 +46,10 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         let hub = UtilityHub(preferences: preferences)
         self.hub = hub
         hub.openWindow = { [weak self] tab in self?.showMainWindow(tab: tab) }
+        hub.openShelfBar = { [weak self] in
+            guard let self, let button = self.moduleItems[.shelf]?.button ?? self.statusItem?.button else { return }
+            self.showShelfBar(button, includeTools: self.moduleItems[.shelf] == nil)
+        }
         configureMainMenu()
         UNUserNotificationCenter.current().delegate = self
 
@@ -64,7 +69,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         groupPopover.behavior = .transient
         popover.contentSize = NSSize(width: 420, height: 580)
         popover.contentViewController = NSHostingController(rootView: BoxPopoverView(shelf: hub.shelf).environmentObject(hub).environmentObject(preferences))
-        hub.shelf.beforeActivation = { [weak self] in self?.popover.performClose(nil); self?.groupPopover.performClose(nil); self?.toolPopover.performClose(nil) }
+        hub.shelf.beforeActivation = { [weak self] in self?.shelfBar.close(); self?.popover.performClose(nil); self?.groupPopover.performClose(nil); self?.toolPopover.performClose(nil) }
         preferences.objectWillChange.sink { [weak self] _ in
             Task { @MainActor in self?.updateStatusItems() }
         }.store(in: &subscriptions)
@@ -94,6 +99,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 
     private func updateStatusItems() {
         guard let hub else { return }
+        if !preferences.enabled(.shelf) { shelfBar.close() }
         statusItem?.button?.contentTintColor = preferences.coloredIcon && hub.icons.menuImage.isTemplate ? preferences.accent.nsColor : nil
         let configured = preferences.menuBarReady
         statusItem?.isVisible = preferences.showsBox
@@ -158,6 +164,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     @objc private func openDashboard() { showMainWindow(tab: "system") }
 
     @objc private func toggleGroup(_ sender: NSStatusBarButton) {
+        shelfBar.close()
         guard let hub, let raw = sender.identifier?.rawValue, let id = UUID(uuidString: raw) else { return }
         if groupPopover.isShown && currentGroup == id { groupPopover.performClose(nil); return }
         popover.performClose(nil)
@@ -173,6 +180,7 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
     }
 
     private func showMainWindow(tab: String? = nil) {
+        shelfBar.close()
         guard let hub else { return }
         if let tab { hub.tab = tab }
         popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
@@ -231,7 +239,13 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         NSApp.mainMenu = menu; NSApp.windowsMenu = windows
     }
     @objc private func toggleTool(_ sender: NSStatusBarButton) {
-        guard let hub, let raw = sender.identifier?.rawValue, let module = UtilityModule(rawValue: raw) else { return }
+        guard hub != nil, let raw = sender.identifier?.rawValue, let module = UtilityModule(rawValue: raw) else { return }
+        if module == .shelf { showShelfBar(sender, includeTools: false); return }
+        showTool(module, at: sender)
+    }
+    private func showTool(_ module: UtilityModule, at sender: NSStatusBarButton) {
+        guard let hub else { return }
+        shelfBar.close()
         if toolPopover.isShown && currentTool == module { toolPopover.performClose(nil); return }
         popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
         currentTool = module
@@ -239,10 +253,11 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
         toolPopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
     }
 
-    func applicationWillTerminate(_ notification: Notification) { hub?.shutdown() }
+    func applicationWillTerminate(_ notification: Notification) { shelfBar.close(); hub?.shutdown() }
 
     @objc private func togglePopover() {
         if NSApp.currentEvent?.modifierFlags.contains(.option) == true { hub?.shelf.setCollapsed(false); return }
+        if shelfBar.isShown { shelfBar.close(); return }
         if popover.isShown {
             popover.performClose(nil)
         } else { showPopover() }
@@ -250,10 +265,20 @@ final class MixerAppDelegate: NSObject, NSApplicationDelegate, UNUserNotificatio
 
     private func showPopover() {
         guard let button = statusItem?.button else { return }
+        if preferences.enabled(.shelf) && preferences.externalInBox { showShelfBar(button, includeTools: true); return }
         groupPopover.performClose(nil)
         toolPopover.performClose(nil)
         hub?.mixer?.refresh()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+    private func showShelfBar(_ button: NSStatusBarButton, includeTools: Bool) {
+        guard let hub else { return }
+        if shelfBar.isShown { shelfBar.close(); return }
+        popover.performClose(nil); groupPopover.performClose(nil); toolPopover.performClose(nil)
+        shelfBar.show(button: button, hub: hub, preferences: preferences, includeTools: includeTools) { [weak self, weak button] module in
+            guard let button else { return }
+            self?.showTool(module, at: button)
+        }
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,

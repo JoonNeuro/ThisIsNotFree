@@ -49,6 +49,8 @@ enum PreviewExporter {
         try render("dashboard", view: WorkspaceView())
         hub.tab = "awake"
         try render("tool-preview", view: WorkspaceView())
+        hub.tab = "shelf"
+        try render("shelf-menu-preview", view: WorkspaceView())
         hub.tab = "layout"
         try render("layout", view: WorkspaceView())
         hub.tab = "storage"

@@ -157,7 +157,7 @@ struct ModulePreviewDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                ToolPreviewCanvas(module: module, expanded: true).frame(height: 420).clipShape(RoundedRectangle(cornerRadius: 20))
+                ToolPreviewCanvas(module: module, expanded: true).frame(height: 560).clipShape(RoundedRectangle(cornerRadius: 20))
                 VStack(alignment: .leading, spacing: 15) {
                     Text("A closer look").font(.title3.bold())
                     ForEach(module.features, id: \.self) { feature in
@@ -174,7 +174,7 @@ struct ModulePreviewDetail: View {
                         Button("Add Tool") { preferences.activate(module) }.buttonStyle(.borderedProminent)
                     }.padding(18).background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
                 }
-                Text("This is the actual tool view, using current state. Add the tool to interact with its controls.")
+                Text("The animation shows menu bar placement with the real popup view and current data. Popup controls are read-only; preview placement does not change your saved layout.")
                     .font(.caption2).foregroundStyle(.secondary)
             }.padding(28).frame(maxWidth: 850, alignment: .leading).frame(maxWidth: .infinity)
         }
@@ -187,26 +187,9 @@ struct ToolPreviewCanvas: View {
     var expanded = false
     @State private var reader = UUID()
     var body: some View {
-        GeometryReader { geometry in
-            let sourceWidth: CGFloat = expanded ? min(680, geometry.size.width) : 420
-            let scale = min(geometry.size.width / sourceWidth, 1)
-            ZStack(alignment: .topLeading) {
-                Color(nsColor: .windowBackgroundColor)
-                ActualToolPanel(module: module)
-                    .frame(width: sourceWidth, height: max(380, geometry.size.height / scale), alignment: .top)
-                    .disabled(true)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-                    .scaleEffect(scale, anchor: .topLeading)
-                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: expanded ? .top : .topLeading)
-                VStack {
-                    Spacer()
-                    HStack { Spacer(); Text("READ-ONLY VIEW").font(.system(size: 7, weight: .medium)).tracking(1)
-                        .padding(5).background(Color(nsColor: .controlBackgroundColor), in: Capsule()) }
-                }.padding(7)
-            }.frame(maxWidth: .infinity, maxHeight: .infinity).clipped()
-        }
-        .accessibilityLabel("Current read-only view of \(module.title)")
+        MenuBarToolPreview(module: module, expanded: expanded)
+        .allowsHitTesting(expanded)
+        .accessibilityLabel("Menu bar and popup preview of \(module.title)")
         .onAppear { hub.acquirePreview(module, reader: reader) }
         .onDisappear { hub.releasePreview(module, reader: reader) }
     }

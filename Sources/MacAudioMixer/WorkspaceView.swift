@@ -223,6 +223,7 @@ struct BoxPopoverView: View {
     @EnvironmentObject var preferences: HubPreferences
     @ObservedObject var shelf: MenuShelf
     @State private var selected: UtilityModule?
+    var readOnly = false
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -239,7 +240,9 @@ struct BoxPopoverView: View {
             if !preferences.setupComplete {
                 ContentUnavailableView("Build your toolbox", systemImage: "macwindow", description: Text("Open the app to browse previews and add the tools you want."))
             } else if let selected {
-                ToolContentView(module: selected)
+                if selected == .shelf {
+                    ShelfPopupView(shelf: shelf, readOnly: readOnly, showsHeader: false, width: 420)
+                } else { ToolContentView(module: selected) }
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -257,7 +260,7 @@ struct BoxPopoverView: View {
                         if preferences.enabled(.shelf) && preferences.externalInBox {
                             HStack { Text("Menu Bar Items").font(.caption).foregroundStyle(.secondary); Spacer(); Button { shelf.refresh() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless).disabled(shelf.refreshing) }
                             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 12) {
-                                ForEach(preferences.includeAllExternal ? shelf.items : shelf.pinnedItems) { item in
+                                ForEach(shelf.shelfItems.filter { preferences.includeAllExternal || shelf.pinned.contains($0.id) }) { item in
                                     Button { shelf.activate(item) } label: {
                                         VStack(spacing: 6) {
                                             if let icon = item.icon { Image(nsImage: icon).resizable().frame(width: 26, height: 26) }
@@ -278,7 +281,7 @@ struct BoxPopoverView: View {
             .background(Color(nsColor: .windowBackgroundColor))
             .tint(preferences.accent.color)
             .preferredColorScheme(preferences.appearance == "dark" ? .dark : preferences.appearance == "light" ? .light : nil)
-            .onAppear { if preferences.enabled(.shelf) && preferences.externalInBox { shelf.refresh() } }
+            .onAppear { if !readOnly && !hub.isRenderingExport && preferences.enabled(.shelf) && preferences.externalInBox { shelf.refresh() } }
     }
 }
 
@@ -287,11 +290,6 @@ struct ToolPopoverView: View {
     @EnvironmentObject var preferences: HubPreferences
     let module: UtilityModule
     var body: some View {
-        VStack(spacing: 0) {
-            HStack { Label(module.title, systemImage: module.symbol).font(.headline); Spacer(); Button("Open App") { hub.openWindow?(module.rawValue) }.buttonStyle(.borderless) }.padding(16)
-            Divider()
-            ToolContentView(module: module)
-        }.frame(width: 420, height: 580).background(Color(nsColor: .windowBackgroundColor)).tint(preferences.accent.color)
-            .preferredColorScheme(preferences.appearance == "dark" ? .dark : preferences.appearance == "light" ? .light : nil)
+        ToolPopupSurface(module: module)
     }
 }

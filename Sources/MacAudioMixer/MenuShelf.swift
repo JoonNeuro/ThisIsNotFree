@@ -7,6 +7,7 @@ struct ShelfItem: Identifiable {
     let appName: String
     let icon: NSImage?
     let element: AXUIElement
+    var frame: CGRect? = nil
 }
 
 @MainActor
@@ -18,6 +19,13 @@ final class MenuShelf: ObservableObject {
     @Published private(set) var pinned: [String] = UserDefaults.standard.stringArray(forKey: "shelf.pinned") ?? []
     @Published private(set) var collapsed = false
     @Published private(set) var organizerEnabled = false
+    @Published private(set) var arrangement = ShelfArrangement.load()
+    @Published private(set) var liveIcons: [String: NSImage] = [:]
+    @Published private(set) var capturedAt: Date?
+    @Published private(set) var screenCaptureGranted = CGPreflightScreenCaptureAccess()
+    @Published private(set) var capturing = false
+    @Published private(set) var arranging = false
+    @Published private(set) var appliedItems: Set<String> = []
     var beforeActivation: (() -> Void)?
     let supportsCollapse = ProcessInfo.processInfo.operatingSystemVersion.majorVersion < 27
     private var divider: NSStatusItem?
@@ -26,6 +34,13 @@ final class MenuShelf: ObservableObject {
 
     var pinnedItems: [ShelfItem] {
         pinned.compactMap { id in items.first(where: { $0.id == id }) }
+    }
+    var shelfItems: [ShelfItem] { arrangement.ordered(items.filter { arrangement.destination($0.id) == .shelf }) }
+    func assign(_ id: String, to destination: ShelfDestination, before: String? = nil) {
+        arrangement.order = arrangement.ordered(items).map(\.id)
+        arrangement.assign(id, to: destination, before: before)
+        arrangement.save()
+        appliedItems.remove(id)
     }
 
     func requestAccessibility() {
@@ -65,7 +80,7 @@ final class MenuShelf: ObservableObject {
                     let title = text(kAXDescriptionAttribute) ?? text(kAXTitleAttribute) ?? appName
                     let identifier = text(kAXIdentifierAttribute) ?? "item:\(index)"
                     found.append(ShelfItem(id: "\(bundle):\(identifier)", title: title,
-                                           appName: appName, icon: icon, element: element))
+                                           appName: appName, icon: icon, element: element, frame: Self.elementFrame(element)))
                 }
             }
             let unique = found.reduce(into: [ShelfItem]()) { result, item in
@@ -74,6 +89,7 @@ final class MenuShelf: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.items = unique; self.refreshing = false
+                if self.screenCaptureGranted { self.captureIcons() }
                 let completions = self.refreshCompletions; self.refreshCompletions = []
                 completions.forEach { $0() }
             }
@@ -153,5 +169,103 @@ final class MenuShelf: ObservableObject {
         if let divider { NSStatusBar.system.removeStatusItem(divider) }
         divider = nil
         organizerEnabled = false
+    }
+}
+
+extension MenuShelf {
+    nonisolated static func elementFrame(_ element: AXUIElement) -> CGRect? {
+        var position: CFTypeRef?, size: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
+              let position, let size, CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else { return nil }
+        var origin = CGPoint.zero, dimensions = CGSize.zero
+        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &dimensions),
+              origin.x.isFinite, origin.y.isFinite, dimensions.width.isFinite, dimensions.height.isFinite else { return nil }
+        return CGRect(origin: origin, size: dimensions)
+    }
+    func requestIconCapture() {
+        screenCaptureGranted = CGPreflightScreenCaptureAccess()
+        if !screenCaptureGranted { screenCaptureGranted = CGRequestScreenCaptureAccess() }
+        if screenCaptureGranted { refresh { [weak self] in self?.captureIcons() } }
+        else {
+            message = "Allow Screen Recording for original icon snapshots, then refresh. Without it, only labeled app-icon fallbacks are shown."
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
+        }
+    }
+    func captureIcons() {
+        screenCaptureGranted = CGPreflightScreenCaptureAccess()
+        guard screenCaptureGranted, !capturing else { return }
+        capturing = true
+        let visibleItems = items
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.capturing = false }
+            do {
+                let images = try await ShelfIconCapture.capture(visibleItems)
+                // Hidden originals cannot be captured; keep their last known image.
+                self.liveIcons.merge(images) { _, new in new }
+                self.capturedAt = images.isEmpty ? self.capturedAt : Date()
+            } catch { self.message = "Icon snapshots could not be read: \(error.localizedDescription)" }
+        }
+    }
+
+    func applyArrangement() {
+        guard supportsCollapse else { message = "This macOS version does not support section collapsing. Choices affect Shelf contents only."; return }
+        guard AXIsProcessTrusted() else { requestAccessibility(); return }
+        guard !arranging else { return }
+        // Explicit user action: reveal first, then Command-drag originals using
+        // the OS's normal menu bar rearrangement gesture. Verify every move.
+        enableOrganizer(true); setCollapsed(false)
+        beforeActivation?()
+        arranging = true; appliedItems = []
+        Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            let desired = self.arrangement.ordered(self.items)
+            var failed: [String] = []
+            for item in desired {
+                guard let button = self.divider?.button, let window = button.window,
+                      let main = NSScreen.screens.first else { failed.append(item.title); continue }
+                let cocoa = window.convertToScreen(button.convert(button.bounds, to: nil))
+                let top = main.frame.maxY
+                let dividerRect = CGRect(x: cocoa.minX, y: top-cocoa.maxY, width: cocoa.width, height: cocoa.height)
+                guard let source = Self.elementFrame(item.element), source.width > 0, source.height > 0,
+                      abs(source.midY-dividerRect.midY) < 12 else { failed.append(item.title); continue }
+                let keep = self.arrangement.destination(item.id) == .keep
+                let alreadyPlaced = keep ? source.midX > dividerRect.maxX : source.midX < dividerRect.minX
+                if alreadyPlaced { self.appliedItems.insert(item.id); continue }
+                // Stay within the menu bar. Never drag down into the removal area.
+                let target = CGPoint(x: keep ? dividerRect.maxX + 12 : dividerRect.minX - 12, y: source.midY)
+                let start = CGPoint(x: source.midX, y: source.midY)
+                await Self.commandDrag(from: start, to: target)
+                try? await Task.sleep(for: .milliseconds(200))
+                guard let moved = Self.elementFrame(item.element), let currentWindow = button.window else { failed.append(item.title); continue }
+                let newDivider = currentWindow.convertToScreen(button.convert(button.bounds, to: nil))
+                let success = keep ? moved.midX > newDivider.maxX : moved.midX < newDivider.minX
+                if success { self.appliedItems.insert(item.id) } else { failed.append(item.title) }
+            }
+            self.arranging = false
+            // Failed items remain revealed. Do not report a planned assignment as
+            // a successful hide or collapse any unverified arrangement.
+            if failed.isEmpty { self.setCollapsed(true); self.message = "Arrangement applied. Shelf and Hidden originals are collapsed; kept icons remain visible." }
+            else { self.message = "Kept originals revealed. Could not move: \(failed.joined(separator: ", ")). Command-drag these beside the divider, then apply again." }
+            self.refresh()
+        }
+    }
+    nonisolated private static func commandDrag(from start: CGPoint, to end: CGPoint) async {
+        guard CGPreflightPostEventAccess(), let source = CGEventSource(stateID: .hidSystemState) else { return }
+        let original = CGEvent(source: nil)?.location
+        func post(_ kind: CGEventType, _ point: CGPoint) {
+            let event = CGEvent(mouseEventSource: source, mouseType: kind, mouseCursorPosition: point, mouseButton: .left)
+            event?.flags = .maskCommand; event?.post(tap: .cghidEventTap)
+        }
+        post(.leftMouseDown, start)
+        for step in 1...16 {
+            try? await Task.sleep(for: .milliseconds(18))
+            let t = CGFloat(step)/16
+            post(.leftMouseDragged, .init(x: start.x+(end.x-start.x)*t, y: start.y+(end.y-start.y)*t))
+        }
+        post(.leftMouseUp, end)
+        if let original { CGEvent(mouseEventSource: source, mouseType: .mouseMoved, mouseCursorPosition: original, mouseButton: .left)?.post(tap: .cghidEventTap) }
     }
 }
